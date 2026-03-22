@@ -1251,8 +1251,22 @@
 
             // ---- MimeType Selection (Adaptive) ----
             const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-            const mimeType = isSafari ? 'video/mp4' : 'video/webm; codecs=vp9';
-            let chosenType = MediaRecorder.isTypeSupported(mimeType) ? mimeType : 'video/webm';
+            
+            // Chrome can record H.264 in WebM, which is easy to remux to MP4
+            const typeH264 = 'video/webm; codecs=h264';
+            const typeVP9 = 'video/webm; codecs=vp9';
+            const typeDefault = 'video/webm';
+            
+            let chosenType = '';
+            if (isSafari && MediaRecorder.isTypeSupported('video/mp4')) {
+                chosenType = 'video/mp4';
+            } else if (MediaRecorder.isTypeSupported(typeH264)) {
+                chosenType = typeH264;
+            } else if (MediaRecorder.isTypeSupported(typeVP9)) {
+                chosenType = typeVP9;
+            } else {
+                chosenType = typeDefault;
+            }
 
             try {
                 mediaRecorder = new MediaRecorder(combinedStream, { 
@@ -1285,20 +1299,39 @@
                 try {
                     const ffmpegInstance = await initFFmpeg();
                     statusText.textContent = '📦 高速MP4変換を実行中...';
-                    await ffmpegInstance.writeFile('input.webm', await fetchFile(blob));
                     
-                    // Remux (Copy-codec) - Instant but safe
-                    await ffmpegInstance.exec([
+                    const inputBlob = await fetchFile(blob);
+                    await ffmpegInstance.writeFile('input.webm', inputBlob);
+                    
+                    const isH264 = mediaRecorder.mimeType.includes('h264');
+                    console.log(`Remuxing from ${mediaRecorder.mimeType}. H264 detected: ${isH264}`);
+                    
+                    // Transcode if not H264 (VP9/VP8 can't be 'copied' to MP4 safely)
+                    const vcodec = isH264 ? 'copy' : 'libx264';
+                    const args = [
                         '-i', 'input.webm', 
-                        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', 
-                        'output.mp4'
-                    ]);
+                        '-c:v', vcodec, 
+                        '-preset', 'ultrafast', '-crf', '22',
+                        '-c:a', 'aac', '-b:a', '128k', 
+                        '-y', 'output.mp4'
+                    ];
+
+                    // Set safety timeout for conversion
+                    const convTimeout = setTimeout(() => {
+                        console.error("FFmpeg conversion timed out.");
+                        throw new Error("Conversion Timeout");
+                    }, 60000); // 60s max for remux/transcode
+
+                    await ffmpegInstance.exec(args);
+                    clearTimeout(convTimeout);
                     
                     const data = await ffmpegInstance.readFile('output.mp4');
                     const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
                     downloadBlob(mp4Blob, isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4');
                 } catch (e) {
                     console.warn("Remux failed, falling back to raw recording:", e);
+                    statusText.innerHTML = `<span style="color:#f87171">⚠️ MP4変換に失敗しました（WebM形式で保存します）</span>`;
+                    await new Promise(r => setTimeout(r, 2000));
                     downloadBlob(blob, isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm');
                 }
                 finishExport();
