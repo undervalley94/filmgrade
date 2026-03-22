@@ -680,7 +680,6 @@
             uniform float u_chromatic;
             uniform float u_bloom;
             uniform float u_halation;
-            uniform float u_lb;
             uniform float u_time;
             out vec4 outColor;
 
@@ -716,11 +715,6 @@
                 vec2 dist = v_texCoord - 0.5;
                 float vignette = 1.0 - dot(dist, dist) * (u_vignette * 2.0);
                 col.rgb *= clamp(vignette, 0.0, 1.0);
-
-                // 6. Letterbox (Hard cut)
-                if (v_texCoord.y < u_lb || v_texCoord.y > 1.0 - u_lb) {
-                    col.rgb = vec3(0.0);
-                }
 
                 outColor = col;
             }`;
@@ -836,7 +830,6 @@
                 gl.uniform1f(gl.getUniformLocation(glProgram, "u_halation"), slHalation.value / 100);
                 gl.uniform1f(gl.getUniformLocation(glProgram, "u_vignette"), slVignette.value / 100);
                 gl.uniform1f(gl.getUniformLocation(glProgram, "u_chromatic"), slChromatic.value / 100);
-                gl.uniform1f(gl.getUniformLocation(glProgram, "u_lb"), (slLB.value / 100) * 0.5);
                 gl.uniform1f(gl.getUniformLocation(glProgram, "u_time"), Math.random()); // Noise seed
                 
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -852,6 +845,16 @@
                     ctx.drawImage(lutCanvas, 0, 0, canvas.width, canvas.height);
                 }
                 ctx.globalAlpha = 1.0; // Reset
+                
+                // 7. Letterbox (Opaque Black Bars)
+                const lbPercent = slLB ? parseFloat(slLB.value) / 100 : 0;
+                if (lbPercent > 0) {
+                    const lbHeight = (canvas.height * lbPercent) / 2;
+                    ctx.fillStyle = "#000000";
+                    ctx.globalAlpha = 1.0;
+                    ctx.fillRect(0, 0, canvas.width, lbHeight);
+                    ctx.fillRect(0, canvas.height - lbHeight, canvas.width, lbHeight);
+                }
             } else {
                 ctx.globalAlpha = 1.0;
                 ctx.filter = baseFilter;
