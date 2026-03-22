@@ -134,6 +134,11 @@
             background: rgba(10, 132, 255, 0.05);
         }
         .upload-icon { font-size: 32px; color: #555; }
+        
+        #drop-zone.dragover {
+            border: 2px dashed var(--accent);
+            background: rgba(10, 132, 255, 0.05);
+        }
 
         /* Player */
         .player-wrapper {
@@ -397,9 +402,12 @@
         
         <!-- Viewer Panel -->
         <section class="viewport">
-            <div class="viewport-header" style="justify-content: space-between;">
+            <div class="viewport-header" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>Viewer</span>
-                <button id="btn-toggle-mute" class="btn btn-outline" style="padding: 2px 8px; font-size: 10px; display: none;">🔈 Unmute</button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-outline" style="padding: 2px 8px; font-size: 10px;" onclick="document.getElementById('file-input').click()">🔄 動画を変更</button>
+                    <button id="btn-toggle-mute" class="btn btn-outline" style="padding: 2px 8px; font-size: 10px; display: none;">🔈 Unmute</button>
+                </div>
             </div>
             <div class="viewport-content" id="drop-zone">
                 <div class="upload-trigger" id="upload-trigger" onclick="document.getElementById('file-input').click()">
@@ -430,7 +438,10 @@
 
         <!-- Inspector Panel -->
         <aside class="inspector">
-            <div class="panel-header">Color Grade (LUT)</div>
+            <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Color Grade (LUT)</span>
+                <button class="btn btn-outline" style="padding: 2px 8px; font-size: 10px; margin-right: 8px;" onclick="document.getElementById('file-input').click()">🔄 動画を変更</button>
+            </div>
             <div class="panel-content">
                 
                 <div class="lut-section" style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color);">
@@ -945,17 +956,17 @@
 
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadTrigger.classList.add('dragover');
+            dropZone.classList.add('dragover');
         });
 
         dropZone.addEventListener('dragleave', (e) => {
             e.preventDefault();
-            uploadTrigger.classList.remove('dragover');
+            dropZone.classList.remove('dragover');
         });
 
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
-            uploadTrigger.classList.remove('dragover');
+            dropZone.classList.remove('dragover');
             if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                 handleFile(e.dataTransfer.files[0]);
             }
