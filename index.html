@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FilmGrade MVP | プロ仕様の映画風カラーグレーディングをあなたの動画に</title>
+    <meta name="description" content="FilmGradeは、ブラウザ上で瞬時にプロ仕様の映画風ルック（3D LUT）を動画に適用できるAIカラーグレーディングツールです。マトリックス、ラ・ラ・ランド、ジョーカー風などのプリセットを今すぐお試しください。">
+    <meta name="keywords" content="動画編集, カラーグレーディング, LUT, 映画風, シネマティック, FilmGrade, ブラウザ編集">
+    
+    <!-- OpenGraph (Social Sharing) -->
+    <meta property="og:title" content="FilmGrade MVP | シネマティック・カラーグレーディング">
+    <meta property="og:description" content="AIがあなたの動画を一瞬で映画のワンシーンに変えます。">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://filmgrade.vercel.app"> <!-- 公開URLが決まったらここを修正 -->
+    <style>
+        /* CSS Reset & Base */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #141414;
+            color: #d1d1d1;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Variables */
+        :root {
+            --bg-base: #141414;
+            --bg-panel: #1D1D1D;
+            --bg-hover: #2A2A2A;
+            --border-color: #282828;
+            --text-main: #E0E0E0;
+            --text-muted: #8A8A8A;
+            --accent: #0A84FF;
+            --accent-hover: #006ee6;
+        }
+
+        /* Typography */
+        h1, h2, h3, h4 { font-weight: 500; color: var(--text-main); }
+        p { color: var(--text-muted); line-height: 1.5; }
+
+        /* Header */
+        .workspace-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 48px;
+            padding: 0 16px;
+            background-color: #181818;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .logo-wrap { display: flex; align-items: center; gap: 8px; }
+        .logo { font-size: 14px; font-weight: 600; letter-spacing: 0.5px; color: #fff; }
+        .badge { background: #333; color: #aaa; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+
+        /* Buttons */
+        .btn {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid transparent;
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .btn-outline { border-color: #404040; }
+        .btn-outline:hover { background: var(--bg-hover); border-color: #555; }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-premium { background: linear-gradient(135deg, #f2c94c 0%, #f2994a 100%); color: #000; font-weight: 600; border: none; width: 100%; padding: 10px; font-size: 13px; margin-top: auto; }
+        .btn-premium:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* Main Workspace layout */
+        .workspace { display: flex; flex: 1; height: calc(100vh - 48px); }
+        
+        /* Viewport */
+        .viewport {
+            flex: 1;
+            background-color: #0A0A0A;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            min-height: 0;
+        }
+        .viewport-header {
+            height: 32px;
+            background-color: var(--bg-panel);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .viewport-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 16px;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        /* Upload Area */
+        .upload-trigger {
+            width: 100%;
+            max-width: 480px;
+            height: 240px;
+            border: 1px dashed #404040;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            background: rgba(255,255,255,0.02);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .upload-trigger:hover, .upload-trigger.dragover {
+            border-color: var(--accent);
+            background: rgba(10, 132, 255, 0.05);
+        }
+        .upload-icon { font-size: 32px; color: #555; }
+
+        /* Player */
+        .player-wrapper {
+            width: 100%;
+            flex: 1;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            min-height: 0;
+        }
+        video {
+            max-width: 100%;
+            max-height: 100%;
+            background-color: #000;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            transition: filter 0.3s ease;
+        }
+
+        /* Inspector Panel (Right) */
+        .inspector {
+            width: 300px;
+            background-color: var(--bg-panel);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .panel-header {
+            height: 32px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #fff;
+            background-color: #222;
+        }
+        .panel-content { padding: 16px; flex: 1; display: flex; flex-direction: column; overflow-y: auto;}
+        
+        /* Look up table selection */
+        .lut-section { margin-bottom: 24px; }
+        .section-title { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .lut-grid { display: grid; gap: 12px; }
+        .lut-card {
+            background-color: var(--bg-base);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .lut-card:hover { border-color: #555; }
+        .lut-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+        
+        .lut-preview { height: 72px; width: 100%; background-position: center; background-size: cover; border-bottom: 1px solid var(--border-color); }
+        .lut-info { padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; }
+        .lut-name { font-size: 12px; font-weight: 500; color: #ccc; }
+        
+        /* Primary Slider UI */
+        .intensity-panel { width: 100%; max-width: 480px; margin-top: 12px; background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .intensity-slider { width: 100%; margin: 8px 0 0 0; accent-color: var(--accent); cursor: pointer; }
+
+        /* Conversion Modals */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: none; justify-content: center; align-items: center; z-index: 10000; padding: 20px; }
+        .modal-content { background: #1a1a1a; border: 1px solid #333; border-radius: 16px; max-width: 400px; width: 100%; padding: 32px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .modal-title { font-size: 20px; font-weight: 600; margin-bottom: 12px; color: #fff; }
+        .modal-text { font-size: 14px; color: #aaa; margin-bottom: 24px; line-height: 1.5; }
+        .plan-card { background: #222; border: 1px solid #333; border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; text-align: left; position: relative; }
+        .plan-card:hover { border-color: var(--accent); background: #2a2a2a; }
+        .plan-card.pro { border-color: #ffd70033; background: linear-gradient(135deg, #1a1a1a 0%, #252010 100%); }
+        .plan-card.pro:hover { border-color: #ffd700; }
+        .plan-badge { position: absolute; top: 12px; right: 12px; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #ffd700; color: #000; font-weight: 700; }
+        .plan-name { font-weight: 600; margin-bottom: 4px; display: block; }
+        .plan-desc { font-size: 12px; color: #888; }
+
+
+        /* Mobile & Vertical Video Responsiveness */
+        @media (max-width: 768px) {
+            .workspace { flex-direction: column; }
+            .viewport { 
+                flex: 0 0 55vh; 
+                min-height: 280px;
+            }
+            .inspector { 
+                flex: 1; 
+                width: 100%; 
+                border-left: none; 
+                border-top: 1px solid var(--border-color); 
+            }
+            .panel-content { padding-bottom: 40px; }
+
+            /* 2 Column Mobile LUT Grid */
+            .lut-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .lut-card { aspect-ratio: 1 / 1; display: flex; flex-direction: column; }
+            .lut-preview { height: auto; flex: 1; border-bottom: 1px solid var(--border-color); }
+            .lut-info { height: 32px; padding: 4px; justify-content: center; }
+            .lut-name { font-size: 10px; white-space: normal; line-height: 1.2; text-align: center; }
+
+            /* Mobile Compact Player UI */
+            .intensity-panel { padding: 12px; margin-top: 8px; border-radius: 6px; }
+            .intensity-panel span { font-size: 10px !important; }
+        }
+    </style>
+</head>
+<body>
+    <!-- App Header -->
+    <header class="workspace-header">
+        <div class="logo-wrap">
+            <div class="logo">FilmGrade</div>
+            <span class="badge">MVP</span>
+        </div>
+        <div class="auth-wrap" style="display: flex; align-items: center;">
+            <button class="btn btn-outline" id="btn-google-login" style="display: flex; align-items: center; gap: 6px; padding: 4px 10px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg>
+                Googleでログイン
+            </button>
+            <div id="user-profile" style="display: none; align-items: center; gap: 8px;">
+                <img id="user-avatar" src="" alt="User Avatar" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid #444;">
+                <span id="user-name" style="font-size: 11px; color: var(--text-main); font-weight: 500;"></span>
+                <span id="badge-pro" style="display: none; font-size: 10px; background: #ffd700; color: #000; padding: 2px 6px; border-radius: 4px; font-weight: 700;">PRO</span>
+                <button class="btn btn-outline" id="btn-logout" style="padding: 4px 8px; font-size: 10px; margin-left: 8px;">ログアウト</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Auth Modal -->
+    <div id="modal-auth" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-title">動画を保存 (Export)</div>
+            <p class="modal-text">高品質な動画をエクスポートするには、無料のアカウント登録が必要です。作成した編集内容は保持されます。</p>
+            <button class="btn btn-primary" id="btn-modal-login" style="width: 100%; justify-content: center; gap: 8px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg>
+                Googleで無料登録して保存
+            </button>
+            <button class="btn btn-outline" style="margin-top: 16px; width: 100%; border: none;" onclick="document.getElementById('modal-auth').style.display='none'">キャンセル</button>
+        </div>
+    </div>
+
+    <!-- Plan Selector Modal -->
+    <div id="modal-plans" class="modal-overlay">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-title">書き出しプランの選択</div>
+            <p class="modal-text">用途に合わせてプランをお選びください。</p>
+            
+            <div class="plan-card" id="plan-free">
+                <span class="plan-name">FREE プラン</span>
+                <span class="plan-desc">720p 標準画質 / FilmGradeロゴ入り</span>
+            </div>
+
+            <div class="plan-card pro" id="plan-pro">
+                <div class="plan-badge">RECOMMENDED</div>
+                <span class="plan-name">PRO プラン (￥980/月)</span>
+                <span class="plan-desc">4K・Full HD 高画質 / ロゴなし / 全ルック解放</span>
+            </div>
+
+            <button class="btn btn-outline" style="margin-top: 12px; width: 100%; border: none;" onclick="document.getElementById('modal-plans').style.display='none'">キャンセル</button>
+        </div>
+    </div>
+
+    <!-- Stripe Checkout Simulator Modal -->
+    <div id="modal-stripe" class="modal-overlay">
+        <div class="modal-content">
+            <div id="stripe-loading">
+                <div class="modal-title">Stripe決済へリダイレクト中...</div>
+                <p class="modal-text">安全な決済ページへ移動しています。少々お待ちください。</p>
+                <div style="width: 40px; height: 40px; border: 3px solid #333; border-top-color: #635bff; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto;"></div>
+            </div>
+            <div id="stripe-success" style="display: none;">
+                <div class="modal-title" style="color: #4BB543;">✅ 決済が完了しました！</div>
+                <p class="modal-text">FilmGrade PROプランをご利用いただけます。透かし無しの高品質エクスポートがアンロックされました。</p>
+                <button class="btn btn-primary" style="width: 100%;" onclick="location.reload()">今すぐ使う (Reload)</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+        
+        <!-- Viewer Panel -->
+        <section class="viewport">
+            <div class="viewport-header" style="justify-content: space-between;">
+                <span>Viewer</span>
+                <button id="btn-toggle-mute" class="btn btn-outline" style="padding: 2px 8px; font-size: 10px; display: none;">🔈 Unmute</button>
+            </div>
+            <div class="viewport-content" id="drop-zone">
+                <div class="upload-trigger" id="upload-trigger" onclick="document.getElementById('file-input').click()">
+                    <div class="upload-icon">📁</div>
+                    <div style="text-align: center;">
+                        <p style="margin-bottom: 6px; color: #fff; font-size: 14px;">クリックまたはドラッグ＆ドロップで動画を追加</p>
+                        <p style="font-size: 12px;">mp4, mov (ローカルブラウザ処理)</p>
+                    </div>
+                </div>
+                <input type="file" id="file-input" accept="video/*" style="display: none;">
+                
+                <div class="player-wrapper" id="player-wrapper">
+                    <video id="video-player" loop muted autoplay playsinline crossorigin="anonymous" style="display: none;"></video>
+                    <canvas id="lut-canvas" style="display: none;"></canvas>
+                    <canvas id="video-canvas" style="width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 40px rgba(0,0,0,0.8));"></canvas>
+                </div>
+                
+                <!-- Primary Intensity UI -->
+                <div id="intensity-controls" class="intensity-panel" style="display: none;">
+                    <div style="font-size: 13px; color: var(--text-muted); display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <span>LUT Intensity (強さ)</span>
+                        <span id="val-intensity" style="color: var(--accent); font-weight: 500;">50%</span>
+                    </div>
+                    <input type="range" class="intensity-slider" id="main-lut-intensity" min="0" max="1" step="0.01" value="0.5">
+                </div>
+            </div>
+        </section>
+
+        <!-- Inspector Panel -->
+        <aside class="inspector">
+            <div class="panel-header">Color Grade (LUT)</div>
+            <div class="panel-content">
+                
+                <div class="lut-section" style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color);">
+                    <div class="section-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span>Custom 3D LUT (.cube)</span>
+                        <input type="file" id="lut-upload" accept=".cube" style="display: none;">
+                        <button class="btn btn-outline" style="padding: 4px 8px; font-size: 10px;" onclick="document.getElementById('lut-upload').click()">アップロード</button>
+                    </div>
+                    <div id="lut-status" style="font-size: 11px; color: #888; text-align: right;">未読み込み</div>
+                </div>
+
+                <div class="lut-section">
+                    <div class="section-title">Cinematic References (CSS)</div>
+                    <div class="lut-grid" id="lut-grid-container">
+                        <!-- Dynamic LUT cards injected by JS -->
+                    </div>
+                    
+                    <div class="reset-wrap" style="margin-bottom: 24px;">
+                        <button class="btn btn-outline" style="width: 100%;" onclick="applyFilter('none', null)">元に戻す (Reset)</button>
+                    </div>
+
+                    <div class="section-title">Color Adjustments</div>
+                    
+                    <!-- Brightness -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 11px; width: 68px; color: var(--text-muted);">明るさ</span>
+                        <input type="range" id="sl-bright" min="0" max="200" step="1" value="100" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
+                        <span id="val-bright" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">100%</span>
+                    </div>
+                    
+                    <!-- Contrast -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 11px; width: 68px; color: var(--text-muted);">コントラスト</span>
+                        <input type="range" id="sl-contrast" min="0" max="200" step="1" value="100" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
+                        <span id="val-contrast" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">100%</span>
+                    </div>
+
+                    <!-- Saturation -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 11px; width: 68px; color: var(--text-muted);">彩度</span>
+                        <input type="range" id="sl-saturate" min="0" max="200" step="1" value="100" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
+                        <span id="val-saturate" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">100%</span>
+                    </div>
+                    
+                    <button class="btn btn-outline" style="width: 100%; font-size: 11px; padding: 6px;" onclick="resetAdjustments()">数値をリセット</button>
+                </div>
+
+                <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
+                    <button class="btn btn-primary" id="btn-export" style="width: 100%; padding: 10px; font-weight: 500;">
+                        ⬇️ エクスポート (MVP評価用)
+                    </button>
+                    
+                    <button class="btn btn-premium" onclick="alert('Stripeの決済画面へ遷移します (ダミー機能: サブスクリプション登録後に透かし無し・高画質での書き出しが可能になります)')">
+                        ✨ 高画質で書き出す (Premium)
+                    </button>
+                </div>
+
+            </div>
+        </aside>
+
+    </main>
+
+    <script>
+        // DOM Elements
+        const fileInput = document.getElementById('file-input');
+        const uploadTrigger = document.getElementById('upload-trigger');
+        const playerWrapper = document.getElementById('player-wrapper');
+        const videoPlayer = document.getElementById('video-player');
+        const canvas = document.getElementById('video-canvas');
+        const ctx = canvas.getContext('2d');
+        const lutCanvas = document.getElementById('lut-canvas');
+        const gl = lutCanvas.getContext('webgl2', { preserveDrawingBuffer: true });
+        const dropZone = document.getElementById('drop-zone');
+        const lutCards = document.querySelectorAll('.lut-card');
+        const btnMute = document.getElementById('btn-toggle-mute');
+
+        // ==== Mute Toggle Logic ====
+        btnMute.addEventListener('click', () => {
+            videoPlayer.muted = !videoPlayer.muted;
+            btnMute.textContent = videoPlayer.muted ? '🔈 Unmute' : '🔊 Mute';
+        });
+
+        // ==== Intensity Slider ====
+        const intensityControls = document.getElementById('intensity-controls');
+        const mainLutIntensity = document.getElementById('main-lut-intensity');
+        const valIntensity = document.getElementById('val-intensity');
+
+        mainLutIntensity.addEventListener('input', (e) => {
+            valIntensity.textContent = Math.round(e.target.value * 100) + '%';
+            if (videoPlayer.paused && canvas.width > 0) forceRender();
+        });
+
+        // Basic Adjustments Sliders
+        const slBright = document.getElementById('sl-bright');
+        const slContrast = document.getElementById('sl-contrast');
+        const slSaturate = document.getElementById('sl-saturate');
+        const valBright = document.getElementById('val-bright');
+        const valContrast = document.getElementById('val-contrast');
+        const valSaturate = document.getElementById('val-saturate');
+
+        function updateAdj(e, valEl) {
+            valEl.textContent = e.target.value + '%';
+            if (videoPlayer.paused && canvas.width > 0) forceRender();
+        }
+
+        slBright.addEventListener('input', e => updateAdj(e, valBright));
+        slContrast.addEventListener('input', e => updateAdj(e, valContrast));
+        slSaturate.addEventListener('input', e => updateAdj(e, valSaturate));
+
+        window.resetAdjustments = () => {
+            slBright.value = 100; valBright.textContent = '100%';
+            slContrast.value = 100; valContrast.textContent = '100%';
+            slSaturate.value = 100; valSaturate.textContent = '100%';
+            if (videoPlayer.paused && canvas.width > 0) forceRender();
+        };
+
+        let animationFrameId = null;
+        let currentFilter = 'none';
+        let hasCustomLut = false;
+
+        // ==== WebGL 3D LUT Init ====
+        let glProgram, glVideoTex, glLutTex;
+        
+        function initWebGL() {
+            if (!gl) {
+                console.warn('WebGL2 is not supported.');
+                return;
+            }
+            gl.getExtension('OES_texture_float_linear');
+            
+            const vsSource = `#version 300 es
+            in vec2 a_position;
+            out vec2 v_texCoord;
+            void main() {
+                gl_Position = vec4(a_position, 0.0, 1.0);
+                v_texCoord = vec2(a_position.x * 0.5 + 0.5, 0.5 - a_position.y * 0.5); 
+            }`;
+
+            const fsSource = `#version 300 es
+            precision mediump float;
+            precision mediump sampler3D;
+            in vec2 v_texCoord;
+            uniform sampler2D u_video;
+            uniform sampler3D u_lut;
+            uniform int u_useLut;
+            out vec4 outColor;
+
+            void main() {
+                vec4 col = texture(u_video, v_texCoord);
+                if (u_useLut == 1) {
+                    col.rgb = texture(u_lut, clamp(col.rgb, 0.0, 1.0)).rgb;
+                }
+                outColor = col;
+            }`;
+
+            function compileShader(type, source) {
+                const s = gl.createShader(type);
+                gl.shaderSource(s, source);
+                gl.compileShader(s);
+                return s;
+            }
+            glProgram = gl.createProgram();
+            gl.attachShader(glProgram, compileShader(gl.VERTEX_SHADER, vsSource));
+            gl.attachShader(glProgram, compileShader(gl.FRAGMENT_SHADER, fsSource));
+            gl.linkProgram(glProgram);
+            gl.useProgram(glProgram);
+
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+            const posLoc = gl.getAttribLocation(glProgram, "a_position");
+            gl.enableVertexAttribArray(posLoc);
+            gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+            glVideoTex = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, glVideoTex);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            
+            glLutTex = gl.createTexture();
+            
+            gl.uniform1i(gl.getUniformLocation(glProgram, "u_video"), 0);
+            gl.uniform1i(gl.getUniformLocation(glProgram, "u_lut"), 1);
+        }
+        initWebGL();
+
+        // ==== .cube Parser & Upload ====
+        const lutUpload = document.getElementById('lut-upload');
+        const lutStatus = document.getElementById('lut-status');
+        
+        lutUpload.addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            hasCustomLut = false;
+
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const text = ev.target.result;
+                const lines = text.split('\n');
+                let size = 0;
+                let data = [];
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    if (!line || line.startsWith('#')) continue;
+                    if (line.startsWith('LUT_3D_SIZE')) {
+                        size = parseInt(line.split(/\s+/)[1], 10);
+                    } else if (/^[0-9.-]/.test(line)) {
+                        const pts = line.split(/\s+/);
+                        if (pts.length === 3) {
+                            data.push(parseFloat(pts[0]), parseFloat(pts[1]), parseFloat(pts[2]));
+                        }
+                    }
+                }
+
+                if (size > 0 && data.length === size * size * size * 3) {
+                    const uintData = new Uint8Array(size * size * size * 4);
+                    let idx = 0, j = 0;
+                    for (let i = 0; i < size * size * size; i++) {
+                        uintData[idx++] = Math.max(0, Math.min(255, data[j++] * 255));
+                        uintData[idx++] = Math.max(0, Math.min(255, data[j++] * 255));
+                        uintData[idx++] = Math.max(0, Math.min(255, data[j++] * 255));
+                        uintData[idx++] = 255;
+                    }
+                    applyLUTData(size, uintData);
+                    
+                    const cards = document.querySelectorAll('.lut-card');
+                    cards.forEach(card => card.classList.remove('active'));
+                    currentFilter = 'none';
+
+                    lutStatus.textContent = file.name + ' を適用中';
+                    lutStatus.style.color = '#0A84FF';
+                } else {
+                    lutStatus.textContent = '無効なファイルです';
+                    lutStatus.style.color = 'red';
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // ==== Canvas Render Loop ====
+        function forceRender() {
+            const intensity = mainLutIntensity ? parseFloat(mainLutIntensity.value) : 0.5;
+            const baseFilter = `brightness(${slBright.value}%) contrast(${slContrast.value}%) saturate(${slSaturate.value}%)`;
+
+            if (gl) {
+                gl.viewport(0, 0, lutCanvas.width, lutCanvas.height);
+                gl.useProgram(glProgram);
+                
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, glVideoTex);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoPlayer);
+                
+                gl.uniform1i(gl.getUniformLocation(glProgram, "u_useLut"), hasCustomLut ? 1 : 0);
+                if (hasCustomLut) {
+                    gl.activeTexture(gl.TEXTURE1);
+                    gl.bindTexture(gl.TEXTURE_3D, glLutTex);
+                }
+                
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+                // Blend base video and filtered WebGL pass
+                ctx.globalAlpha = 1.0;
+                ctx.filter = baseFilter;
+                ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
+
+                if (intensity > 0) {
+                    ctx.globalAlpha = intensity;
+                    ctx.filter = currentFilter !== 'none' ? `${baseFilter} ${currentFilter}` : baseFilter;
+                    ctx.drawImage(lutCanvas, 0, 0, canvas.width, canvas.height);
+                }
+                ctx.globalAlpha = 1.0; // Reset
+            } else {
+                ctx.globalAlpha = 1.0;
+                ctx.filter = baseFilter;
+                ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
+
+                if (intensity > 0) {
+                    ctx.globalAlpha = intensity;
+                    ctx.filter = currentFilter !== 'none' ? `${baseFilter} ${currentFilter}` : baseFilter;
+                    ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
+                }
+                ctx.globalAlpha = 1.0;
+
+                // ==== Watermark Logic ====
+                if (isExporting && !isProExport) {
+                    const padding = canvas.width * 0.03;
+                    const fontSize = Math.max(20, canvas.width * 0.04);
+                    ctx.font = `600 ${fontSize}px Inter, sans-serif`;
+                    ctx.fillStyle = "rgba(255,255,255,0.7)";
+                    ctx.textAlign = "right";
+                    ctx.textBaseline = "bottom";
+                    ctx.shadowBlur = 4;
+                    ctx.shadowColor = "rgba(0,0,0,0.5)";
+                    ctx.fillText("FilmGrade MVP", canvas.width - padding, canvas.height - padding);
+                    ctx.shadowBlur = 0;
+                }
+            }
+        }
+
+        function drawFrame() {
+            if (videoPlayer.paused || videoPlayer.ended) return;
+            forceRender();
+            animationFrameId = requestAnimationFrame(drawFrame);
+        }
+
+        videoPlayer.addEventListener('play', () => {
+            if (canvas.width !== videoPlayer.videoWidth) {
+                canvas.width = videoPlayer.videoWidth;
+                canvas.height = videoPlayer.videoHeight;
+                lutCanvas.width = videoPlayer.videoWidth;
+                lutCanvas.height = videoPlayer.videoHeight;
+            }
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            drawFrame();
+        });
+
+        function handleFile(file) {
+            if (file && file.type.startsWith('video/')) {
+                const url = URL.createObjectURL(file);
+                videoPlayer.src = url;
+                uploadTrigger.style.display = 'none';
+                playerWrapper.style.display = 'flex';
+                intensityControls.style.display = 'block';
+                btnMute.style.display = 'block';
+                
+                videoPlayer.onloadedmetadata = () => {
+                    canvas.width = videoPlayer.videoWidth;
+                    canvas.height = videoPlayer.videoHeight;
+                    lutCanvas.width = videoPlayer.videoWidth;
+                    lutCanvas.height = videoPlayer.videoHeight;
+
+                    // Automatically start playing when loaded
+                    videoPlayer.play().catch(e => console.log('Auto-play prevented', e));
+                };
+            } else {
+                alert('動画ファイルを選択してください。');
+            }
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            handleFile(e.target.files[0]);
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadTrigger.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadTrigger.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadTrigger.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // ==== Hollywood-Grade 3D LUT Generator ====
+        function clamp(v) { return Math.max(0, Math.min(1, v)); }
+        function mix(a, b, t) { return a * (1 - t) + b * t; }
+        function sCurve(v) { return v < 0.5 ? 2.0 * v * v : 1.0 - Math.pow(-2.0 * v + 2.0, 2.0) / 2.0; }
+        function getLum(r,g,b) { return 0.299*r + 0.587*g + 0.114*b; }
+
+        function generateLUTData(params) {
+            const size = 32;
+            const data = new Uint8Array(size * size * size * 4);
+            let i = 0;
+            // Iterate in proper .cube memory order for WebGL 3D Texture (R changes fastest)
+            for (let b = 0; b < size; b++) {
+                for (let g = 0; g < size; g++) {
+                    for (let r = 0; r < size; r++) {
+                        let cr = r / 31.0;
+                        let cg = g / 31.0;
+                        let cb = b / 31.0;
+                        
+                        // Contrast (S-Curve blend)
+                        if (params.contrast !== undefined) {
+                            cr = mix(cr, sCurve(cr), params.contrast);
+                            cg = mix(cg, sCurve(cg), params.contrast);
+                            cb = mix(cb, sCurve(cb), params.contrast);
+                        }
+                        
+                        // Saturation
+                        if (params.saturation !== undefined) {
+                            let lum = getLum(cr, cg, cb);
+                            cr = mix(lum, cr, params.saturation);
+                            cg = mix(lum, cg, params.saturation);
+                            cb = mix(lum, cb, params.saturation);
+                        }
+
+                        // Split Toning (Shadows/Highlights color inject)
+                        let lum2 = getLum(cr, cg, cb);
+                        let shadowW = Math.max(0, 1.0 - lum2 * 2.0);
+                        let highW = Math.max(0, (lum2 - 0.5) * 2.0);
+
+                        if (params.shadows) {
+                            cr += params.shadows[0] * shadowW;
+                            cg += params.shadows[1] * shadowW;
+                            cb += params.shadows[2] * shadowW;
+                        }
+                        if (params.highlights) {
+                            cr += params.highlights[0] * highW;
+                            cg += params.highlights[1] * highW;
+                            cb += params.highlights[2] * highW;
+                        }
+
+                        // Master Tint
+                        if (params.tint) {
+                            cr *= params.tint[0];
+                            cg *= params.tint[1];
+                            cb *= params.tint[2];
+                        }
+                        
+                        data[i++] = clamp(cr) * 255;
+                        data[i++] = clamp(cg) * 255;
+                        data[i++] = clamp(cb) * 255;
+                        data[i++] = 255;
+                    }
+                }
+            }
+            return data;
+        }
+
+        const presetFilters = [
+            { id: 'cyberpunk', name: 'Cyberpunk Green', css: 'contrast(1.2) brightness(0.9) sepia(1) hue-rotate(80deg) saturate(1.8)', p: { contrast: 0.4, saturation: 1.3, shadows: [-0.05, 0.1, 0.2], highlights: [0.2, -0.1, 0.2] }},
+            { id: 'vintage', name: 'Vintage Warm', css: 'sepia(0.5) contrast(1.05) brightness(1.1) saturate(1.4) hue-rotate(-15deg)', p: { contrast: 0.2, saturation: 0.8, shadows: [0.1, 0.05, 0.0], tint: [1.1, 1.05, 0.9] }},
+            { id: 'cinematic', name: 'Cinematic Blue', css: 'contrast(1.3) brightness(0.85) sepia(1) hue-rotate(190deg) saturate(1.5)', p: { contrast: 0.5, saturation: 1.1, shadows: [-0.1, -0.05, 0.15], highlights: [0.0, 0.05, 0.1] }},
+            { id: 'bw_noir', name: 'B&W Noir', css: 'grayscale(1) contrast(1.5) brightness(0.9)', p: { contrast: 0.8, saturation: 0.0 }},
+            { id: 'muted_film', name: 'Muted Film', css: 'saturate(0.4) contrast(0.9) brightness(1.1) sepia(0.2)', p: { contrast: -0.2, saturation: 0.5, tint: [0.95, 0.95, 0.95] }},
+            { id: 'golden_hour', name: 'Golden Hour', css: 'sepia(0.5) hue-rotate(-10deg) saturate(1.5) brightness(1.05) contrast(1.1)', p: { contrast: 0.2, saturation: 1.4, shadows: [0.05, 0.0, -0.05], highlights: [0.2, 0.1, -0.1] }},
+            { id: 'matrix', name: 'Matrix Glow', css: 'contrast(1.4) saturate(1.2) sepia(1) hue-rotate(70deg)', p: { contrast: 0.6, saturation: 1.1, tint: [0.6, 1.2, 0.6], shadows: [0.0, 0.1, 0.0] }},
+            { id: 'pastel', name: 'Pastel Dream', css: 'brightness(1.1) contrast(0.85) saturate(0.7) sepia(0.2) hue-rotate(300deg)', p: { contrast: -0.3, saturation: 0.7, shadows: [0.1, 0.1, 0.15], highlights: [0.05, 0.05, 0.05] }},
+            { id: 'horror', name: 'Horror Dark', css: 'brightness(0.7) contrast(1.3) saturate(0.4) sepia(0.4) hue-rotate(180deg)', p: { contrast: 0.7, saturation: 0.3, tint: [0.7, 0.8, 0.9], shadows: [-0.1, -0.1, 0.0] }},
+            { id: 'miami', name: 'Miami Neon', css: 'contrast(1.2) saturate(1.5) hue-rotate(320deg) brightness(1.1)', p: { contrast: 0.4, saturation: 1.5, shadows: [0.1, -0.1, 0.2], highlights: [0.2, 0.1, -0.1] }},
+            { id: 'retro_70s', name: '70s Retro', css: 'sepia(0.8) hue-rotate(10deg) saturate(0.8) contrast(0.9) brightness(1.2)', p: { contrast: -0.1, saturation: 0.7, tint: [1.1, 1.0, 0.8], shadows: [0.05, 0.05, -0.05] }},
+            { id: 'bleach', name: 'Bleach Bypass', css: 'saturate(0.2) contrast(1.6) brightness(0.9)', p: { contrast: 0.9, saturation: 0.3, shadows: [-0.1, -0.1, -0.1], highlights: [0.1, 0.1, 0.1] }},
+            { id: 'sunset', name: 'Sunset Vibes', css: 'sepia(0.3) saturate(1.4) hue-rotate(350deg) contrast(1.1) brightness(1.1)', p: { contrast: 0.3, saturation: 1.3, tint: [1.2, 0.9, 0.8], shadows: [0.1, 0.0, -0.1] }},
+            { id: 'sci_fi', name: 'Sci-Fi Violet', css: 'sepia(0.7) hue-rotate(250deg) saturate(1.3) contrast(1.2) brightness(0.9)', p: { contrast: 0.5, saturation: 1.1, tint: [0.9, 0.8, 1.2], shadows: [0.0, -0.1, 0.1] }},
+            { id: 'teal_orange', name: 'Blockbuster T&O', css: 'contrast(1.2) saturate(1.4) sepia(0.2) hue-rotate(345deg)', p: { contrast: 0.5, saturation: 1.2, shadows: [-0.05, 0.05, 0.15], highlights: [0.15, 0.1, -0.05] }},
+            { id: 'sepia', name: 'Classic Sepia', css: 'sepia(1) contrast(1.1)', p: { contrast: 0.2, saturation: 0.2, tint: [1.2, 1.0, 0.8] }},
+            { id: 'polaroid', name: 'Faded Polaroid', css: 'sepia(0.4) saturate(0.6) contrast(0.8) brightness(1.2) hue-rotate(-20deg)', p: { contrast: -0.2, saturation: 0.6, shadows: [0.1, 0.1, 0.1], highlights: [-0.05, -0.05, -0.05], tint: [1.05, 1.0, 0.95] }},
+            { id: 'winter', name: 'Winter Chill', css: 'sepia(0.5) hue-rotate(180deg) saturate(0.6) brightness(1.2) contrast(1.1)', p: { contrast: 0.3, saturation: 0.8, tint: [0.8, 0.9, 1.2], shadows: [-0.05, 0.0, 0.1] }},
+            { id: 'desert', name: 'Desert Heat', css: 'sepia(0.5) hue-rotate(20deg) saturate(1.5) contrast(1.2) brightness(1.1)', p: { contrast: 0.4, saturation: 1.1, tint: [1.2, 1.1, 0.8], highlights: [0.1, 0.1, -0.1] }},
+            { id: 'pop_art', name: 'Pop Art', css: 'saturate(2.5) contrast(1.5)', p: { contrast: 0.5, saturation: 2.0 }}
+        ];
+
+        const gridContainer = document.getElementById('lut-grid-container');
+        presetFilters.forEach((preset, index) => {
+            const card = document.createElement('div');
+            card.className = 'lut-card';
+            card.onclick = () => applyFilter(preset.id, card);
+            
+            card.innerHTML = `
+                <div class="lut-preview" style="background-image: url('https://picsum.photos/seed/${preset.id}/300/100'); filter: ${preset.css};"></div>
+                <div class="lut-info">
+                    <span class="lut-name">${index + 1}. ${preset.name}</span>
+                </div>
+            `;
+            gridContainer.appendChild(card);
+        });
+
+        // Universal WebGL LUT Applicator
+        function applyLUTData(size, floatData) {
+            if (gl) {
+                gl.activeTexture(gl.TEXTURE1);
+                gl.bindTexture(gl.TEXTURE_3D, glLutTex);
+                gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+                gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGBA, size, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, floatData);
+                hasCustomLut = true;
+                if (videoPlayer.paused && canvas.width > 0) forceRender();
+            }
+        }
+
+        function applyFilter(filterKey, activeCard) {
+            if (filterKey === 'none') {
+                hasCustomLut = false;
+                currentFilter = 'none';
+                lutStatus.textContent = '初期化済み';
+                lutStatus.style.color = '#888';
+                if (videoPlayer.paused && canvas.width > 0) forceRender();
+            } else {
+                const preset = presetFilters.find(p => p.id === filterKey);
+                if (preset) {
+                    const floatArray = generateLUTData(preset.p);
+                    applyLUTData(32, floatArray);
+                    currentFilter = 'none'; // WebGL natively handles it now!
+                    lutStatus.textContent = preset.name + ' を適用中 (3D LUT)';
+                    lutStatus.style.color = '#0A84FF';
+                }
+            }
+
+            const cards = document.querySelectorAll('.lut-card');
+            cards.forEach(card => card.classList.remove('active'));
+            if (activeCard) {
+                activeCard.classList.add('active');
+            }
+        }
+
+        // ==== Export (Media Recorder) ====
+        const btnExport = document.getElementById('btn-export');
+        let mediaRecorder;
+        let recordedChunks = [];
+        let isExporting = false;
+        
+        // Load persist status from localStorage for demo
+        let userIsPro = localStorage.getItem('filmgrade_pro') === 'true';
+        let isProExport = userIsPro;
+
+        btnExport.addEventListener('click', () => {
+            if (!videoPlayer.src) {
+                alert('動画が読み込まれていません');
+                return;
+            }
+            if (mediaRecorder && mediaRecorder.state === 'recording') return;
+
+            // Step 2: Check Login
+            const auth = firebase.auth();
+            if (!auth.currentUser) {
+                document.getElementById('modal-auth').style.display = 'flex';
+                return;
+            }
+
+            // Step 3: Show Plan Selector (Only if not already Pro)
+            if (userIsPro) {
+                isProExport = true;
+                startRecordingProcess();
+            } else {
+                document.getElementById('modal-plans').style.display = 'flex';
+            }
+        });
+
+        // Modal Auth Integration
+        document.getElementById('btn-modal-login').addEventListener('click', () => {
+            const auth = firebase.auth();
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).then(() => {
+                document.getElementById('modal-auth').style.display = 'none';
+                if (userIsPro) {
+                    isProExport = true;
+                    startRecordingProcess();
+                } else {
+                    document.getElementById('modal-plans').style.display = 'flex';
+                }
+            }).catch(e => alert("Login failed: " + e.message));
+        });
+
+        // Plan Selection logic
+        document.getElementById('plan-free').addEventListener('click', () => {
+            isProExport = false;
+            document.getElementById('modal-plans').style.display = 'none';
+            startRecordingProcess();
+        });
+
+        document.getElementById('plan-pro').addEventListener('click', () => {
+            document.getElementById('modal-plans').style.display = 'none';
+            document.getElementById('modal-stripe').style.display = 'flex';
+            
+            // Simulate Stripe Checkout Redirect + Webhook callback
+            setTimeout(() => {
+                document.getElementById('stripe-loading').style.display = 'none';
+                document.getElementById('stripe-success').style.display = 'block';
+                localStorage.setItem('filmgrade_pro', 'true');
+                userIsPro = true;
+            }, 3000);
+        });
+
+        function startRecordingProcess() {
+            isExporting = true;
+            // Capture streams
+            const canvasStream = canvas.captureStream(30); // 30 FPS
+            
+            // Capture audio tracks from video player
+            let audioTracks = [];
+            try {
+                const videoStream = videoPlayer.captureStream ? videoPlayer.captureStream() : (videoPlayer.mozCaptureStream ? videoPlayer.mozCaptureStream() : null);
+                if (videoStream) {
+                    audioTracks = videoStream.getAudioTracks();
+                }
+            } catch (e) {
+                console.warn("Audio capture failed:", e);
+            }
+
+            // Combine video and audio
+            const combinedStream = new MediaStream([
+                ...canvasStream.getVideoTracks(),
+                ...audioTracks
+            ]);
+            
+            try {
+                let options = { mimeType: 'video/webm; codecs=vp9' };
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    options = { mimeType: 'video/webm' };
+                }
+                mediaRecorder = new MediaRecorder(combinedStream, options);
+            } catch (e) {
+                alert('このブラウザでは録画機能がサポートされていません');
+                isExporting = false;
+                return;
+            }
+
+            recordedChunks = [];
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+                
+                btnExport.textContent = '⬇️ エクスポート';
+                btnExport.disabled = false;
+                isExporting = false;
+                videoPlayer.loop = true;
+                videoPlayer.currentTime = 0;
+                videoPlayer.play().catch(()=>{});
+            };
+
+            // Start recording
+            videoPlayer.currentTime = 0;
+            videoPlayer.loop = false; 
+            videoPlayer.play().catch(()=>{});
+            
+            mediaRecorder.start();
+            btnExport.textContent = isProExport ? '録画中 (PRO)...' : '録画中 (FREE)...';
+            btnExport.disabled = true;
+
+            // Fallback safety termination
+            videoPlayer.onended = () => {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                }
+            };
+        }
+    </script>
+    
+    <script>
+        // 🔥 IMPORTANT: Replace these dummy values with your actual Firebase Project config keys!
+        const firebaseConfig = {
+            apiKey: "AIzaSyBMUssITtSkozl9_hoxg_XOrAwdIDexoGU",
+            authDomain: "filmgrade.firebaseapp.com",
+            projectId: "filmgrade",
+            storageBucket: "filmgrade.firebasestorage.app",
+            messagingSenderId: "350609542167",
+            appId: "1:350609542167:web:916429c8c4ef39b322a052",
+            measurementId: "G-SHQBFF7TXD"
+        };
+
+        const loginBtn = document.getElementById('btn-google-login');
+        const userProfile = document.getElementById('user-profile');
+        const userName = document.getElementById('user-name');
+        const userAvatar = document.getElementById('user-avatar');
+        const btnLogout = document.getElementById('btn-logout');
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+            const auth = firebase.auth();
+            const provider = new firebase.auth.GoogleAuthProvider();
+
+            loginBtn.addEventListener('click', () => {
+                loginBtn.textContent = '読込中...';
+                auth.signInWithPopup(provider).catch((error) => {
+                    console.error("Login failed:", error);
+                    alert("ログインエラー (" + error.code + "): " + error.message + "\n\n※スマホのローカルIP等でテストしている場合、Firebaseコンソールの「承認済みドメイン」にテスト用IPを追加する必要があります。");
+                    loginBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg> Googleでログイン';
+                });
+            });
+
+            btnLogout.addEventListener('click', () => auth.signOut());
+
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    loginBtn.style.display = 'none';
+                    userProfile.style.display = 'flex';
+                    userName.textContent = user.displayName || 'ゲスト';
+                    userAvatar.src = user.photoURL || 'https://via.placeholder.com/24';
+                    
+                    // Show Pro badge if applicable
+                    if (localStorage.getItem('filmgrade_pro') === 'true') {
+                        document.getElementById('badge-pro').style.display = 'inline-block';
+                    }
+                } else {
+                    loginBtn.style.display = 'flex';
+                    userProfile.style.display = 'none';
+                    loginBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg> Googleでログイン';
+                }
+            });
+        } catch(e) {
+            console.log("Firebase setup skipped or errored:", e);
+            alert("システム初期化エラー: " + e.message);
+        }
+    </script>
+</body>
+</html>
