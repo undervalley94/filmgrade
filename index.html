@@ -273,9 +273,8 @@
             <span class="badge">MVP</span>
         </div>
         <div class="auth-wrap" style="display: flex; align-items: center;">
-            <button class="btn btn-outline" id="btn-google-login" style="display: flex; align-items: center; gap: 6px; padding: 4px 10px;">
-                <svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg>
-                Googleでログイン
+            <button class="btn btn-outline" id="btn-google-login" style="padding: 4px 10px;">
+                ログイン / 会員登録
             </button>
             <div id="user-profile" style="display: none; align-items: center; gap: 8px;">
                 <img id="user-avatar" src="" alt="User Avatar" crossorigin="anonymous" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 1px solid #444;">
@@ -288,14 +287,29 @@
 
     <!-- Auth Modal -->
     <div id="modal-auth" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-title">動画を保存 (Export)</div>
-            <p class="modal-text">高品質な動画をエクスポートするには、無料のアカウント登録が必要です。作成した編集内容は保持されます。</p>
-            <button class="btn btn-primary" id="btn-modal-login" style="width: 100%; justify-content: center; gap: 8px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg>
-                Googleで無料登録して保存
+        <div class="modal-content" style="max-width: 360px;">
+            <div class="modal-title">FilmGrade アカウント</div>
+            <p class="modal-text">メールアドレスでログインまたは新規登録してください。ログインすることで編集設定が保存され、エクスポートが可能になります。</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 12px; text-align: left; margin-bottom: 20px;">
+                <div>
+                    <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">メールアドレス</label>
+                    <input type="email" id="auth-email" placeholder="example@mail.com" style="width: 100%; background: #222; border: 1px solid #333; border-radius: 6px; padding: 10px; color: #fff; font-size: 14px;">
+                </div>
+                <div>
+                    <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">パスワード</label>
+                    <input type="password" id="auth-password" placeholder="6文字以上" style="width: 100%; background: #222; border: 1px solid #333; border-radius: 6px; padding: 10px; color: #fff; font-size: 14px;">
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="btn-login-email" style="width: 100%; justify-content: center; margin-bottom: 8px;">
+                ログイン
             </button>
-            <button class="btn btn-outline" style="margin-top: 16px; width: 100%; border: none;" onclick="document.getElementById('modal-auth').style.display='none'">キャンセル</button>
+            <button class="btn btn-outline" id="btn-signup-email" style="width: 100%; justify-content: center; margin-bottom: 16px;">
+                新規アカウント作成
+            </button>
+
+            <button class="btn" style="width: 100%; border: none; font-size: 12px; color: #666;" onclick="document.getElementById('modal-auth').style.display='none'">キャンセル</button>
         </div>
     </div>
 
@@ -1269,45 +1283,60 @@
             const auth = firebase.auth();
             const provider = new firebase.auth.GoogleAuthProvider();
 
-            // Handle Redirect Result (Essential for Safari)
-            auth.getRedirectResult().then((result) => {
-                if (result.user) {
-                    console.log("Redirect Success:", result.user.email);
-                    localStorage.setItem('filmgrade_user', result.user.uid);
+            // Handle Login
+            document.getElementById('btn-login-email').addEventListener('click', () => {
+                const email = document.getElementById('auth-email').value;
+                const password = document.getElementById('auth-password').value;
+                if (!email || !password) return alert("メールアドレスとパスワードを入力してください");
+                
+                const btn = document.getElementById('btn-login-email');
+                btn.disabled = true;
+                btn.textContent = '読込中...';
+
+                auth.signInWithEmailAndPassword(email, password).then(() => {
                     document.getElementById('modal-auth').style.display = 'none';
-                    // Clear loading state if redirected back
-                    loginBtn.disabled = false;
-                    loginBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg> Googleでログイン';
-                    if (isExporting) startRecordingProcess();
-                }
-            }).catch(e => console.error("Redirect Error:", e));
+                }).catch(e => {
+                    alert("ログインエラー: " + e.message);
+                    btn.disabled = false;
+                    btn.textContent = 'ログイン';
+                });
+            });
 
+            // Handle Sign Up
+            document.getElementById('btn-signup-email').addEventListener('click', () => {
+                const email = document.getElementById('auth-email').value;
+                const password = document.getElementById('auth-password').value;
+                if (!email || password.length < 6) return alert("有効なメールアドレスと6文字以上のパスワードを入力してください");
+
+                const btn = document.getElementById('btn-signup-email');
+                btn.disabled = true;
+                btn.textContent = '読込中...';
+
+                auth.createUserWithEmailAndPassword(email, password).then(() => {
+                    alert("アカウントを作成しました！ログイン状態でご利用いただけます。");
+                    document.getElementById('modal-auth').style.display = 'none';
+                }).catch(e => {
+                    alert("新規登録エラー: " + e.message);
+                    btn.disabled = false;
+                    btn.textContent = '新規アカウント作成';
+                });
+            });
+
+            // Open Modal from Header
             loginBtn.addEventListener('click', () => {
-                loginBtn.disabled = true;
-                loginBtn.textContent = '読込中...';
-                const provider = new firebase.auth.GoogleAuthProvider();
-
-                const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-                if (isSafari) {
-                    auth.signInWithRedirect(provider);
-                } else {
-                    auth.signInWithPopup(provider).catch((error) => {
-                        console.error("Login failed:", error);
-                        alert("ログインエラー (" + error.code + "): " + error.message);
-                        loginBtn.disabled = false;
-                        loginBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg> Googleでログイン';
-                    });
-                }
+                document.getElementById('modal-auth').style.display = 'flex';
             });
 
             btnLogout.addEventListener('click', () => auth.signOut());
 
             auth.onAuthStateChanged((user) => {
                 if (user) {
+                    localStorage.setItem('filmgrade_user', user.uid);
                     loginBtn.style.display = 'none';
                     userProfile.style.display = 'flex';
-                    userName.textContent = user.displayName || 'ゲスト';
-                    userAvatar.src = user.photoURL || 'https://via.placeholder.com/24';
+                    // Show email as name for native accounts
+                    userName.textContent = user.displayName || user.email.split('@')[0];
+                    userAvatar.src = user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`;
                     
                     // Show Pro badge if applicable
                     if (localStorage.getItem('filmgrade_pro') === 'true') {
