@@ -212,6 +212,7 @@
         .progress-container { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin: 20px 0; }
         #progress-bar-fill { width: 0%; height: 100%; background: var(--accent); transition: width 0.1s linear; }
         .progress-percentage { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+        #debug-mode-badge { position: fixed; bottom: 10px; right: 10px; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #333; color: #888; z-index: 9999; }
 
 
         /* Mobile & Vertical Video Responsiveness */
@@ -244,6 +245,7 @@
 </head>
 <body>
     <!-- App Header -->
+    <div id="debug-mode-badge">Checking engine...</div>
     <header class="workspace-header">
         <div class="logo-wrap">
             <div class="logo">FilmGrade</div>
@@ -442,6 +444,16 @@
         const dropZone = document.getElementById('drop-zone');
         const lutCards = document.querySelectorAll('.lut-card');
         const btnMute = document.getElementById('btn-toggle-mute');
+
+        // Debug Indicator
+        const debugBadge = document.getElementById('debug-mode-badge');
+        if (window.crossOriginIsolated) {
+            debugBadge.textContent = '🚀 Performance Mode (MT)';
+            debugBadge.style.color = '#4ade80';
+        } else {
+            debugBadge.textContent = '🐌 Compatibility Mode (ST)';
+            debugBadge.style.color = '#fbbf24';
+        }
 
         // ==== Mute Toggle Logic ====
         btnMute.addEventListener('click', () => {
@@ -1080,9 +1092,9 @@
                     const ffmpegInstance = await initFFmpeg();
                     await ffmpegInstance.writeFile('input.webm', await fetchFile(blob));
                     
-                    // --- PHASE 1: Fast Remux (Copy) ---
-                    console.log("🚀 Attempting fast remux...");
-                    await ffmpegInstance.exec(['-i', 'input.webm', '-c:v', 'copy', '-c:a', 'copy', 'output.mp4']);
+                    console.log("🚀 Starting MP4 Remuxing...");
+                    // Try copying streams to MP4 container
+                    await ffmpegInstance.exec(['-i', 'input.webm', '-c', 'copy', 'output.mp4']);
                     
                     const data = await ffmpegInstance.readFile('output.mp4');
                     const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
@@ -1097,12 +1109,12 @@
                     setTimeout(() => {
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
-                    }, 100);
-                } catch (e) {
-                    console.error("FFmpeg Conversion Error (V2):", e);
-                    statusText.textContent = '❌ MP4変換に失敗しました。WebMで保存します。';
+                    }, 1000);
                     
-                    // Fallback to WebM if conversion fails
+                } catch (e) {
+                    console.error("FFmpeg Breakdown Error (V3):", e);
+                    statusText.innerHTML = `<span style="color:#f87171">❌ 変換エラー: ${e.message || 'Engine Fail'}</span><br>WebMで保存します。`;
+                    
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.style.display = 'none';

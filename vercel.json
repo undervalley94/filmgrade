@@ -10,8 +10,5 @@
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" }
       ]
     }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
