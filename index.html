@@ -1143,7 +1143,7 @@
             // Step 3: Show Plan Selector (Only if not already Pro)
             if (userIsPro) {
                 isProExport = true;
-                startRenderingProcess();
+                startExportProcess();
             } else {
                 document.getElementById('modal-plans').style.display = 'flex';
             }
@@ -1154,7 +1154,7 @@
         document.getElementById('plan-free').addEventListener('click', () => {
             isProExport = false;
             document.getElementById('modal-plans').style.display = 'none';
-            startRenderingProcess();
+            startExportProcess();
         });
 
         document.getElementById('plan-pro').addEventListener('click', () => {
@@ -1168,7 +1168,7 @@
                 localStorage.setItem('filmgrade_pro', 'true');
                 userIsPro = true;
                 isProExport = true;
-                startRenderingProcess();
+                startExportProcess();
             }, 3000);
         });
 
@@ -1209,7 +1209,7 @@
             return ffInstanceResult;
         }
 
-        async function startRenderingProcess() {
+        async function startExportProcess() {
             isExporting = true;
             
             // Show Export Progress UI
@@ -1221,101 +1221,129 @@
             modalProgress.style.display = 'flex';
             progressFill.style.width = '0%';
             progressText.textContent = '0%';
-            statusText.textContent = '🚀 レンダリングエンジンを起動中...';
+            statusText.textContent = '🚀 エクスポートの準備中...';
 
-            videoPlayer.pause();
-            const ffmpegInstance = await initFFmpeg();
+            // Capture streams (Real-time for speed)
             const fps = 30;
-            const duration = videoPlayer.duration;
-            const totalFrames = Math.ceil(duration * fps);
+            const canvasStream = canvas.captureStream(fps);
             
-            // 1. Audio Extraction (Pro quality)
+            // Universal Audio Capture via Web Audio API
+            if (!audioCtx) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    audioSource = audioCtx.createMediaElementSource(videoPlayer);
+                    audioDest = audioCtx.createMediaStreamDestination();
+                    audioGain = audioCtx.createGain();
+                    audioSource.connect(audioGain);
+                    audioGain.connect(audioDest);
+                    audioGain.connect(audioCtx.destination);
+                    audioGain.gain.value = videoPlayer.muted ? 0 : 1;
+                } catch (e) {
+                    console.warn("Audio Context init failed:", e);
+                }
+            }
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+            const combinedStream = new MediaStream([
+                ...canvasStream.getVideoTracks(),
+                ...(audioDest ? audioDest.stream.getAudioTracks() : [])
+            ]);
+
+            // ---- MimeType Selection (Adaptive) ----
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const mimeType = isSafari ? 'video/mp4' : 'video/webm; codecs=vp9';
+            let chosenType = MediaRecorder.isTypeSupported(mimeType) ? mimeType : 'video/webm';
+
             try {
-                statusText.textContent = '🎵 音声を準備しています...';
-                // Try from file input (fastest) or fetch (slowest)
-                let baseFile = fileInput.files[0];
-                if (!baseFile && videoPlayer.src.startsWith('blob:')) {
-                    // We don't have the original file handle, must fetch
-                    const response = await fetch(videoPlayer.src);
-                    baseFile = await response.blob();
-                }
-                
-                if (baseFile) {
-                    statusText.textContent = '🎵 音声トラックを抽出中...';
-                    await ffmpegInstance.writeFile('src.mp4', await fetchFile(baseFile));
-                    await ffmpegInstance.exec(['-i', 'src.mp4', '-vn', '-acodec', 'copy', 'audio.m4a']);
-                    console.log("Audio extracted successfully (Direct Copy)");
-                }
-            } catch (e) {
-                console.warn("Audio extraction failed, will export without audio or try fallback:", e);
-                statusText.textContent = '⚠️ 音声の抽出に失敗しました（無音で作成します）';
-                await new Promise(r => setTimeout(r, 2000));
-            }
-
-            // 2. Frame-by-Frame Render Loop
-            statusText.textContent = '🎞️ 高画質レンダリングを開始します...';
-            for (let i = 0; i < totalFrames; i++) {
-                if (!isExporting) break;
-                
-                const time = i / fps;
-                videoPlayer.currentTime = time;
-                
-                // Wait for seek with safety timeout
-                await new Promise((resolve) => {
-                    const timeout = setTimeout(() => {
-                        console.warn(`Seek timeout at frame ${i}`);
-                        onSeeked();
-                    }, 2000); // 2s max per frame
-
-                    const onSeeked = () => {
-                        clearTimeout(timeout);
-                        videoPlayer.removeEventListener('seeked', onSeeked);
-                        forceRender(); 
-                        resolve();
-                    };
-                    videoPlayer.addEventListener('seeked', onSeeked);
+                mediaRecorder = new MediaRecorder(combinedStream, { 
+                    mimeType: chosenType,
+                    videoBitsPerSecond: 8000000 // 8Mbps High Quality
                 });
-
-                // Capture Frame to FFmpeg VFS
-                const frameBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-                await ffmpegInstance.writeFile(`f${i}.jpg`, await fetchFile(frameBlob));
-
-                // Progress Update
-                const percent = Math.min(99, Math.floor((i / totalFrames) * 100));
-                progressFill.style.width = (percent * 0.8) + '%'; 
-                progressText.textContent = percent + '%';
-                statusText.textContent = `🎞️ レンダリング中: ${i}/${totalFrames} frames`;
+            } catch (e) {
+                console.error("MediaRecorder init failed:", e);
+                chosenType = 'video/webm';
+                mediaRecorder = new MediaRecorder(combinedStream);
             }
 
-            // 3. Final Muxing (Universal MP4)
-            if (isExporting) {
-                statusText.innerHTML = '📦 <b>MP4形式に変換中...</b><br><small>高品質モードのため、最後までお待ちください。</small>';
-                progressFill.style.width = '90%';
-                
-                // FFmpeg Muxing: Image sequence + Audio copy
-                await ffmpegInstance.exec([
-                    '-f', 'image2', '-r', fps.toString(), '-i', 'f%d.jpg',
-                    '-i', 'audio.m4a',
-                    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '22', '-pix_fmt', 'yuv420p',
-                    '-c:a', 'aac', '-shortest',
-                    'output.mp4'
-                ]);
+            recordedChunks = [];
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
 
-                const data = await ffmpegInstance.readFile('output.mp4');
-                const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+                statusText.innerHTML = '📦 <b>MP4形式を最終処理中...</b>';
                 
-                const url = URL.createObjectURL(mp4Blob);
+                // If it's already MP4 (Safari), just download
+                if (mediaRecorder.mimeType.includes('mp4')) {
+                    downloadBlob(blob, isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4');
+                    finishExport();
+                    return;
+                }
+
+                // If it's WebM (Chrome), remux to MP4 instantly
+                try {
+                    const ffmpegInstance = await initFFmpeg();
+                    statusText.textContent = '📦 高速MP4変換を実行中...';
+                    await ffmpegInstance.writeFile('input.webm', await fetchFile(blob));
+                    
+                    // Remux (Copy-codec) - Instant but safe
+                    await ffmpegInstance.exec([
+                        '-i', 'input.webm', 
+                        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', 
+                        'output.mp4'
+                    ]);
+                    
+                    const data = await ffmpegInstance.readFile('output.mp4');
+                    const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+                    downloadBlob(mp4Blob, isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4');
+                } catch (e) {
+                    console.warn("Remux failed, falling back to raw recording:", e);
+                    downloadBlob(blob, isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm');
+                }
+                finishExport();
+            };
+
+            function downloadBlob(blob, name) {
+                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4';
-                document.body.appendChild(a);
-                a.click();
+                a.style.display = 'none'; a.href = url; a.download = name;
+                document.body.appendChild(a); a.click();
                 setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
             }
 
-            // Cleanup
-            finishExport();
+            // Start real-time recording
+            videoPlayer.currentTime = 0;
+            videoPlayer.loop = false;
+            videoPlayer.play().catch(()=>{});
+            mediaRecorder.start();
+            btnExport.textContent = '録画中...';
+            btnExport.disabled = true;
+
+            const progressInterval = setInterval(() => {
+                if (!isExporting) { clearInterval(progressInterval); return; }
+                const percent = Math.floor((videoPlayer.currentTime / videoPlayer.duration) * 100);
+                progressFill.style.width = percent + '%';
+                progressText.textContent = percent + '%';
+                statusText.textContent = `🎥 録画中... (${percent}%)`;
+            }, 100);
+
+            videoPlayer.onended = () => {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    mediaRecorder.stop();
+                    clearInterval(progressInterval);
+                }
+            };
+        }
+
+        function finishExport() {
+            btnExport.textContent = '⬇️ エクスポート';
+            btnExport.disabled = false;
+            isExporting = false;
+            document.getElementById('modal-export-progress').style.display = 'none';
+            videoPlayer.loop = true;
+            videoPlayer.currentTime = 0;
+            videoPlayer.play().catch(()=>{});
         }
 
         function finishExport() {
