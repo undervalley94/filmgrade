@@ -989,17 +989,16 @@
             if (ffInstanceResult) return ffInstanceResult;
             ffInstanceResult = new FFmpeg();
             
-            // --- Hybrid Engine (MT vs ST) ---
+            // --- Hybrid Engine (Self-Hosted) ---
             const isMT = window.crossOriginIsolated;
-            const baseURL = isMT 
-                ? 'https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/umd'
-                : 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+            // Point to local directory created in Step 997
+            const localBase = isMT ? './ffmpeg/core-mt' : './ffmpeg/core-st';
             
             const statusText = document.getElementById('export-status-text');
             if (isMT) {
-                console.log("⚡ Loading FFmpeg-MT (High Performance)");
+                console.log("⚡ Loading Local FFmpeg-MT (High Performance)");
             } else {
-                console.warn("🐌 Loading FFmpeg-ST (Compatibility Mode)");
+                console.warn("🐌 Loading Local FFmpeg-ST (Compatibility Mode)");
             }
 
             // Enable internal logging for debugging
@@ -1010,23 +1009,11 @@
                 }
             });
 
-            // Bypass Cross-Origin Worker Restrictions
-            let workerObjectURL = undefined;
-            if (isMT) {
-                console.log("🛠 Fetching MT Worker locally...");
-                const workerReq = await fetch(`${baseURL}/ffmpeg-core.worker.js`);
-                if (workerReq.ok) {
-                    const workerBlob = await workerReq.blob();
-                    workerObjectURL = URL.createObjectURL(workerBlob);
-                } else {
-                    console.warn("⚠️ Failed to load worker, falling back to ST internally.");
-                }
-            }
-
+            // Self-hosting eliminates cross-origin worker issues
             await ffInstanceResult.load({
-                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-                workerURL: workerObjectURL
+                coreURL: await toBlobURL(`${localBase}/ffmpeg-core.js`, 'text/javascript'),
+                wasmURL: await toBlobURL(`${localBase}/ffmpeg-core.wasm`, 'application/wasm'),
+                workerURL: isMT ? await toBlobURL(`${localBase}/ffmpeg-core.worker.js`, 'text/javascript') : undefined
             });
             return ffInstanceResult;
         }
