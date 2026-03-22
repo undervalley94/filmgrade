@@ -221,7 +221,39 @@
         #debug-mode-badge { position: fixed; bottom: 10px; right: 10px; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #333; color: #888; z-index: 9999; cursor: pointer; }
         #debug-log-view { position: fixed; bottom: 35px; right: 10px; width: 300px; max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.9); border: 1px solid #444; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 9px; color: #aaa; z-index: 9998; display: none; pointer-events: none; }
         .log-line { border-bottom: 1px solid #222; margin-bottom: 2px; }
-        .log-error { color: #f87171; }
+        .btn-compare {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 100;
+            transition: all 0.2s;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-compare:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.4); }
+        .btn-compare:active { background: var(--accent); border-color: var(--accent); transform: scale(0.95); }
+        
+        .reset-all-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            font-size: 10px;
+            text-decoration: underline;
+            cursor: pointer;
+            padding: 0;
+        }
+        .reset-all-btn:hover { color: #fff; }
 
 
         /* Mobile & Vertical Video Responsiveness */
@@ -363,6 +395,9 @@
                     <video id="video-player" loop muted autoplay playsinline crossorigin="anonymous" style="display: none;"></video>
                     <canvas id="lut-canvas" style="display: none;"></canvas>
                     <canvas id="video-canvas" style="width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 40px rgba(0,0,0,0.8));"></canvas>
+                    <button id="btn-compare" class="btn-compare" style="display: none;">
+                        <span>👁️</span> 比較 (Hold to see original)
+                    </button>
                 </div>
                 
                 <!-- Primary Intensity UI -->
@@ -378,7 +413,10 @@
 
         <!-- Inspector Panel -->
         <aside class="inspector">
-            <div class="panel-header">Color Grade (LUT)</div>
+            <div class="panel-header" style="justify-content: space-between;">
+                <span>Color Grade (LUT)</span>
+                <button class="reset-all-btn" onclick="resetAll()">全てリセット</button>
+            </div>
             <div class="panel-content">
                 
                 <div class="lut-section" style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color);">
@@ -396,9 +434,7 @@
                         <!-- Dynamic LUT cards injected by JS -->
                     </div>
                     
-                    <div class="reset-wrap" style="margin-bottom: 24px;">
-                        <button class="btn btn-outline" style="width: 100%;" onclick="applyFilter('none', null)">元に戻す (Reset)</button>
-                    </div>
+                    <!-- Removed individual reset button here for cleaner UI -->
 
                     <div class="section-title">Color Adjustments</div>
                     
@@ -423,7 +459,7 @@
                         <span id="val-saturate" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">100%</span>
                     </div>
                     
-                    <button class="btn btn-outline" style="width: 100%; font-size: 11px; padding: 6px;" onclick="resetAdjustments()">数値をリセット</button>
+                    <!-- Removed individual value reset button -->
                 </div>
 
                 <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px;">
@@ -454,6 +490,10 @@
         const dropZone = document.getElementById('drop-zone');
         const lutCards = document.querySelectorAll('.lut-card');
         const btnMute = document.getElementById('btn-toggle-mute');
+        const btnCompare = document.getElementById('btn-compare');
+        
+        // UX State
+        let isComparing = false;
 
         // Debug Monitor & Logger Override
         const debugBadge = document.getElementById('debug-mode-badge');
@@ -548,13 +588,37 @@
             uniform sampler2D u_video;
             uniform sampler3D u_lut;
             uniform int u_useLut;
+            uniform float u_intensity;
+            uniform float u_bright;
+            uniform float u_contrast;
+            uniform float u_saturate;
+            uniform int u_isComparing;
             out vec4 outColor;
 
             void main() {
                 vec4 col = texture(u_video, v_texCoord);
-                if (u_useLut == 1) {
-                    col.rgb = texture(u_lut, clamp(col.rgb, 0.0, 1.0)).rgb;
+                
+                if (u_isComparing == 1) {
+                    outColor = col;
+                    return;
                 }
+
+                // Brightness
+                col.rgb *= u_bright;
+
+                // Contrast
+                col.rgb = (col.rgb - 0.5) * u_contrast + 0.5;
+
+                // Saturation
+                float luma = dot(col.rgb, vec3(0.299, 0.587, 0.114));
+                col.rgb = mix(vec3(luma), col.rgb, u_saturate);
+
+                // LUT
+                if (u_useLut == 1) {
+                    vec3 graded = texture(u_lut, clamp(col.rgb, 0.0, 1.0)).rgb;
+                    col.rgb = mix(col.rgb, graded, u_intensity);
+                }
+                
                 outColor = col;
             }`;
 
@@ -646,63 +710,55 @@
 
         // ==== Canvas Render Loop ====
         function forceRender() {
-            const intensity = mainLutIntensity ? parseFloat(mainLutIntensity.value) : 0.5;
-            const baseFilter = `brightness(${slBright.value}%) contrast(${slContrast.value}%) saturate(${slSaturate.value}%)`;
+            if (!gl || !videoPlayer.readyState) return;
 
-            if (gl) {
-                gl.viewport(0, 0, lutCanvas.width, lutCanvas.height);
-                gl.useProgram(glProgram);
-                
-                gl.activeTexture(gl.TEXTURE0);
-                gl.bindTexture(gl.TEXTURE_2D, glVideoTex);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoPlayer);
-                
-                gl.uniform1i(gl.getUniformLocation(glProgram, "u_useLut"), hasCustomLut ? 1 : 0);
-                if (hasCustomLut) {
-                    gl.activeTexture(gl.TEXTURE1);
-                    gl.bindTexture(gl.TEXTURE_3D, glLutTex);
-                }
-                
-                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            gl.viewport(0, 0, lutCanvas.width, lutCanvas.height);
+            gl.useProgram(glProgram);
+            
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, glVideoTex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, videoPlayer);
+            
+            // Pass all parameters to GPU
+            gl.uniform1i(gl.getUniformLocation(glProgram, "u_isComparing"), isComparing ? 1 : 0);
+            gl.uniform1i(gl.getUniformLocation(glProgram, "u_useLut"), (currentFilter !== 'none' || hasCustomLut) ? 1 : 0);
+            gl.uniform1f(gl.getUniformLocation(glProgram, "u_intensity"), parseFloat(mainLutIntensity.value));
+            gl.uniform1f(gl.getUniformLocation(glProgram, "u_bright"), parseFloat(slBright.value) / 100);
+            gl.uniform1f(gl.getUniformLocation(glProgram, "u_contrast"), parseFloat(slContrast.value) / 100);
+            gl.uniform1f(gl.getUniformLocation(glProgram, "u_saturate"), parseFloat(slSaturate.value) / 100);
+            
+            if (hasCustomLut || currentFilter !== 'none') {
+                gl.activeTexture(gl.TEXTURE1);
+                gl.bindTexture(gl.TEXTURE_3D, glLutTex);
+            }
+            
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-                // Blend base video and filtered WebGL pass
-                ctx.globalAlpha = 1.0;
-                ctx.filter = baseFilter;
-                ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
+            // Final Composite on 2D Screen
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(lutCanvas, 0, 0, canvas.width, canvas.height);
 
-                if (intensity > 0) {
-                    ctx.globalAlpha = intensity;
-                    ctx.filter = currentFilter !== 'none' ? `${baseFilter} ${currentFilter}` : baseFilter;
-                    ctx.drawImage(lutCanvas, 0, 0, canvas.width, canvas.height);
-                }
-                ctx.globalAlpha = 1.0; // Reset
-            } else {
-                ctx.globalAlpha = 1.0;
-                ctx.filter = baseFilter;
-                ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
-
-                if (intensity > 0) {
-                    ctx.globalAlpha = intensity;
-                    ctx.filter = currentFilter !== 'none' ? `${baseFilter} ${currentFilter}` : baseFilter;
-                    ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
-                }
-                ctx.globalAlpha = 1.0;
-
-                // ==== Watermark Logic ====
-                if (isExporting && !isProExport) {
-                    const padding = canvas.width * 0.03;
-                    const fontSize = Math.max(20, canvas.width * 0.04);
-                    ctx.font = `600 ${fontSize}px Inter, sans-serif`;
-                    ctx.fillStyle = "rgba(255,255,255,0.7)";
-                    ctx.textAlign = "right";
-                    ctx.textBaseline = "bottom";
-                    ctx.shadowBlur = 4;
-                    ctx.shadowColor = "rgba(0,0,0,0.5)";
-                    ctx.fillText("FilmGrade MVP", canvas.width - padding, canvas.height - padding);
-                    ctx.shadowBlur = 0;
-                }
+            // Watermark
+            if (isExporting && !isProExport) {
+                const padding = canvas.width * 0.03;
+                const fontSize = Math.max(16, canvas.width * 0.035);
+                ctx.font = `600 ${fontSize}px Inter, sans-serif`;
+                ctx.fillStyle = "rgba(255,255,255,0.6)";
+                ctx.textAlign = "right";
+                ctx.textBaseline = "bottom";
+                ctx.fillText("FilmGrade MVP", canvas.width - padding, canvas.height - padding);
             }
         }
+
+        window.resetAll = () => {
+            applyFilter('none', null);
+            mainLutIntensity.value = 0.5;
+            valIntensity.textContent = '50%';
+            slBright.value = 100; valBright.textContent = '100%';
+            slContrast.value = 100; valContrast.textContent = '100%';
+            slSaturate.value = 100; valSaturate.textContent = '100%';
+            if (videoPlayer.paused) forceRender();
+        };
 
         function drawFrame() {
             if (videoPlayer.paused || videoPlayer.ended) return;
@@ -729,6 +785,7 @@
                 playerWrapper.style.display = 'flex';
                 intensityControls.style.display = 'block';
                 btnMute.style.display = 'block';
+                btnCompare.style.display = 'flex';
                 
                 videoPlayer.onloadedmetadata = () => {
                     canvas.width = videoPlayer.videoWidth;
