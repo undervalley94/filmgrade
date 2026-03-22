@@ -261,6 +261,24 @@
             .intensity-panel { padding: 12px; margin-top: 8px; border-radius: 6px; }
             .intensity-panel span { font-size: 10px !important; }
         }
+
+        /* Password Toggle Styling */
+        .password-wrap { position: relative; width: 100%; }
+        .btn-toggle-password { 
+            position: absolute; 
+            right: 8px; 
+            top: 50%; 
+            transform: translateY(-50%); 
+            background: none; 
+            border: none; 
+            color: #666; 
+            cursor: pointer; 
+            padding: 4px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+        }
+        .btn-toggle-password:hover { color: #aaa; }
     </style>
 </head>
 <body>
@@ -298,15 +316,24 @@
                 </div>
                 <div>
                     <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">パスワード</label>
-                    <input type="password" id="auth-password" placeholder="6文字以上" style="width: 100%; background: #222; border: 1px solid #333; border-radius: 6px; padding: 10px; color: #fff; font-size: 14px;">
+                    <div class="password-wrap">
+                        <input type="password" id="auth-password" placeholder="6文字以上" style="width: 100%; background: #222; border: 1px solid #333; border-radius: 6px; padding: 10px; padding-right: 36px; color: #fff; font-size: 14px;">
+                        <button type="button" id="btn-toggle-pass" class="btn-toggle-password" title="パスワードを表示/非表示">
+                            <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <button class="btn btn-primary" id="btn-login-email" style="width: 100%; justify-content: center; margin-bottom: 8px;">
                 ログイン
             </button>
-            <button class="btn btn-outline" id="btn-signup-email" style="width: 100%; justify-content: center; margin-bottom: 16px;">
+            <button class="btn btn-outline" id="btn-signup-email" style="width: 100%; justify-content: center; margin-bottom: 12px;">
                 新規アカウント作成
+            </button>
+
+            <button class="btn" id="btn-forgot-password" style="width: 100%; border: none; font-size: 11px; color: #888; margin-bottom: 16px; text-decoration: underline;">
+                パスワード設定・再設定はこちら
             </button>
 
             <button class="btn" style="width: 100%; border: none; font-size: 12px; color: #666;" onclick="document.getElementById('modal-auth').style.display='none'">キャンセル</button>
@@ -1319,6 +1346,31 @@
                     alert("新規登録エラー: " + e.message);
                     btn.disabled = false;
                     btn.textContent = '新規アカウント作成';
+                });
+            });
+
+            // Handle Password Visibility Toggle
+            document.getElementById('btn-toggle-pass').addEventListener('click', () => {
+                const passInput = document.getElementById('auth-password');
+                const eyeIcon = document.getElementById('eye-icon');
+                if (passInput.type === 'password') {
+                    passInput.type = 'text';
+                    eyeIcon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>';
+                } else {
+                    passInput.type = 'password';
+                    eyeIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+                }
+            });
+
+            // Handle Password Reset
+            document.getElementById('btn-forgot-password').addEventListener('click', () => {
+                const email = document.getElementById('auth-email').value;
+                if (!email) return alert("メールアドレスを入力した状態でこのボタンを押してください。再設定用のメールが送信されます。");
+                
+                auth.sendPasswordResetEmail(email).then(() => {
+                    alert("【送信完了】パスワード設定用のメールを送信しました。届いたURLから新しいパスワードを設定してください。");
+                }).catch(e => {
+                    alert("送信エラー: " + e.message);
                 });
             });
 
