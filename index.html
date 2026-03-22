@@ -577,6 +577,7 @@
 
         // ==== WebGL 3D LUT Init ====
         let glProgram, glVideoTex, glLutTex;
+        let audioCtx, audioSource, audioDest;
         
         function initWebGL() {
             if (!gl) {
@@ -1086,16 +1087,25 @@
             // Capture streams
             const canvasStream = canvas.captureStream(30); // 30 FPS
             
-            // Capture audio tracks from video player
-            let audioTracks = [];
-            try {
-                const videoStream = videoPlayer.captureStream ? videoPlayer.captureStream() : (videoPlayer.mozCaptureStream ? videoPlayer.mozCaptureStream() : null);
-                if (videoStream) {
-                    audioTracks = videoStream.getAudioTracks();
+            // Universal Audio Capture via Web Audio API
+            if (!audioCtx) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    audioSource = audioCtx.createMediaElementSource(videoPlayer);
+                    audioDest = audioCtx.createMediaStreamDestination();
+                    audioSource.connect(audioDest);
+                    audioSource.connect(audioCtx.destination);
+                } catch (e) {
+                    console.warn("Audio Context init failed:", e);
                 }
-            } catch (e) {
-                console.warn("Audio capture failed:", e);
             }
+
+            // Safari requires explicit resume upon user gesture (export click)
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const audioTracks = audioDest ? audioDest.stream.getAudioTracks() : [];
 
             // Combine video and audio
             const combinedStream = new MediaStream([
