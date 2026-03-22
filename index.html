@@ -14,7 +14,7 @@
     <meta property="og:url" content="https://filmgrade.vercel.app"> <!-- 公開URLが決まったらここを修正 -->
     
     <!-- Mp4-Muxer (Ultra-Lightweight / v43) -->
-    <script src="./lib/mp4-muxer.mjs" type="module"></script>
+    <script src="./lib/mp4-muxer.js"></script>
 
     <style>
         /* CSS Reset & Base */
@@ -1179,7 +1179,8 @@
             statusText.textContent = '🎨 独自エンジン起動中...';
 
             try {
-                const { Muxer, ArrayBufferTarget } = await import('./lib/mp4-muxer.mjs');
+                if (typeof Mp4Muxer === 'undefined') throw new Error("Muxer library not loaded");
+                const { Muxer, ArrayBufferTarget } = Mp4Muxer;
                 const fps = 30;
                 const width = canvas.width;
                 const height = canvas.height;
