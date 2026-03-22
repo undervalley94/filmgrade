@@ -12,6 +12,11 @@
     <meta property="og:description" content="AIがあなたの動画を一瞬で映画のワンシーンに変えます。">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://filmgrade.vercel.app"> <!-- 公開URLが決まったらここを修正 -->
+    
+    <!-- FFmpeg.wasm & Utils (MUST be in HEAD to load before application script) -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+
     <style>
         /* CSS Reset & Base */
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1209,10 +1214,7 @@
             };
         }
     </script>
-    
-    <!-- FFmpeg.wasm & Utils -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+
 
     <!-- Firebase Authentication SDK Integration (Compat version) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
