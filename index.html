@@ -1173,29 +1173,32 @@
             }, 3000);
         });
 
-        let ffInstanceResult = null;
+        let ffPromise = null;
         async function initFFmpeg() {
-            if (ffInstanceResult) return ffInstanceResult;
+            if (ffPromise) return ffPromise;
             
-            const { FFmpeg } = FFmpegWASM;
-            const { toBlobURL } = FFmpegUtil;
-            
-            ffInstanceResult = new FFmpeg();
-            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-            
-            const statusText = document.getElementById('export-status-text');
-            ffInstanceResult.on('log', ({ message }) => {
-                console.log("FFmpeg Log:", message);
-                if (message.includes('frame=')) {
-                    statusText.textContent = `📦 MP4処理中: ${message.split('fps=')[0]}`;
-                }
-            });
+            ffPromise = (async () => {
+                const { FFmpeg } = FFmpegWASM;
+                const { toBlobURL } = FFmpegUtil;
+                const ffmpegInstance = new FFmpeg();
+                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+                
+                const statusText = document.getElementById('export-status-text');
+                ffmpegInstance.on('log', ({ message }) => {
+                    console.log("FFmpeg Log:", message);
+                    if (message.includes('frame=')) {
+                        statusText.textContent = `📦 MP4処理中: ${message.split('fps=')[0]}`;
+                    }
+                });
 
-            await ffInstanceResult.load({
-                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-            });
-            return ffInstanceResult;
+                await ffmpegInstance.load({
+                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                });
+                return ffmpegInstance;
+            })();
+            
+            return ffPromise;
         }
 
         async function startExportProcess() {
