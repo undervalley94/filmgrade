@@ -958,12 +958,8 @@
         });
 
         // Modal Auth Integration
-        document.getElementById('btn-modal-login').addEventListener('click', () => {
-            const auth = firebase.auth();
-            const provider = new firebase.auth.GoogleAuthProvider();
             // Use Redirect for reliability with COOP/COEP
-            auth.signInWithRedirect(auth, provider);
-        });
+            auth.signInWithRedirect(provider);
 
         // Plan Selection logic
         document.getElementById('plan-free').addEventListener('click', () => {
@@ -1244,6 +1240,23 @@
 
         try {
             firebase.initializeApp(firebaseConfig);
+            const auth = firebase.auth();
+
+            // Handle Redirect Result on Load
+            auth.getRedirectResult().then((result) => {
+                if (result.user) {
+                    console.log("Redirect Success:", result.user.email);
+                    localStorage.setItem('filmgrade_user', result.user.uid);
+                    // Hide auth modal if open
+                    document.getElementById('modal-auth').style.display = 'none';
+                    // Trigger export again if appropriate
+                    if (isExporting) startRecordingProcess();
+                }
+            }).catch((error) => {
+                if (error.code !== 'auth/no-redirect-operation') {
+                    console.error("Redirect Error:", error.message);
+                }
+            });
             const auth = firebase.auth();
             const provider = new firebase.auth.GoogleAuthProvider();
 
