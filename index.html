@@ -1388,7 +1388,7 @@
                     userProfile.style.display = 'flex';
                     // Show email as name for native accounts
                     userName.textContent = user.displayName || user.email.split('@')[0];
-                    userAvatar.src = user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`;
+                    userAvatar.src = user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`;
                     
                     // Show Pro badge if applicable
                     if (localStorage.getItem('filmgrade_pro') === 'true') {
