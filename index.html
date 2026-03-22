@@ -14,9 +14,9 @@
     <meta property="og:url" content="https://filmgrade.vercel.app"> <!-- 公開URLが決まったらここを修正 -->
     
     <!-- FFmpeg.wasm & Utils (100% Self-Hosted / Standard Way) -->
-    <!-- FFmpeg.wasm & Utils (Official CDN Integration) -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+    <!-- FFmpeg.wasm & Utils (100% Self-Hosted Security) -->
+    <script src="./ffmpeg/lib/ffmpeg.js"></script>
+    <script src="./ffmpeg/lib/ffmpeg-util.js"></script>
 
     <style>
         /* CSS Reset & Base */
@@ -1181,7 +1181,10 @@
                 const { FFmpeg } = FFmpegWASM;
                 const { toBlobURL } = FFmpegUtil;
                 const ffmpegInstance = new FFmpeg();
-                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+                
+                // --- Safe Self-Hosting Logic ---
+                const isIsolated = window.crossOriginIsolated;
+                const localBase = isIsolated ? './ffmpeg/core-mt' : './ffmpeg/core-st';
                 
                 const statusText = document.getElementById('export-status-text');
                 ffmpegInstance.on('log', ({ message }) => {
@@ -1191,9 +1194,11 @@
                     }
                 });
 
+                // Load from same-origin (Local) for maximum worker security
                 await ffmpegInstance.load({
-                    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-                    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+                    coreURL: await toBlobURL(`${localBase}/ffmpeg-core.js`, 'text/javascript'),
+                    wasmURL: await toBlobURL(`${localBase}/ffmpeg-core.wasm`, 'application/wasm'),
+                    workerURL: isIsolated ? await toBlobURL(`${localBase}/ffmpeg-core.worker.js`, 'text/javascript') : undefined
                 });
                 return ffmpegInstance;
             })();
@@ -1289,6 +1294,7 @@
 
                 // If it's WebM (Chrome), remux to MP4 instantly
                 try {
+                    statusText.innerHTML = '📦 <b>動画エンジンを起動中...</b><br><small>FFmpeg（動画の変換エンジン）を準備しています。</small>';
                     const ffmpegInstance = await initFFmpeg();
                     const { fetchFile } = FFmpegUtil;
                     statusText.textContent = '📦 高速MP4変換を実行中...';
