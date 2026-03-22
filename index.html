@@ -198,26 +198,7 @@
         
         /* Primary Slider UI */
         .intensity-panel { width: 100%; max-width: 480px; margin-top: 12px; background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; border: 1px solid var(--border-color); }
-        input[type=range] {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 4px;
-            background: #333;
-            border-radius: 2px;
-            outline: none;
-            cursor: pointer;
-            margin: 12px 0;
-        }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 16px;
-            width: 16px;
-            border-radius: 50%;
-            background: #fff;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-            cursor: pointer;
-            border: none;
-        }
+        .intensity-slider { width: 100%; margin: 8px 0 0 0; accent-color: var(--accent); cursor: pointer; }
 
         /* Conversion Modals */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: none; justify-content: center; align-items: center; z-index: 10000; padding: 20px; }
@@ -550,17 +531,12 @@
             debugBadge.style.color = '#fbbf24';
         }
 
-        function updateSliderFill(el) {
-            const min = parseFloat(el.min) || 0;
-            const max = parseFloat(el.max) || 100;
-            const val = parseFloat(el.value);
-            const percent = (val - min) / (max - min) * 100;
-            el.style.background = `linear-gradient(to right, #0A84FF 0%, #0A84FF ${percent}%, #333 ${percent}%, #333 100%)`;
-        }
-
+        // ==== Intensity Slider ====
+        const intensityControls = document.getElementById('intensity-controls');
+        const mainLutIntensity = document.getElementById('main-lut-intensity');
+        const valIntensity = document.getElementById('val-intensity');
 
         mainLutIntensity.addEventListener('input', (e) => {
-            updateSliderFill(e.target);
             valIntensity.textContent = Math.round(e.target.value * 100) + '%';
             if (videoPlayer.paused && canvas.width > 0) forceRender();
         });
@@ -573,13 +549,7 @@
         const valContrast = document.getElementById('val-contrast');
         const valSaturate = document.getElementById('val-saturate');
 
-        // Initialize fills correctly after all elements are defined
-        [mainLutIntensity, slBright, slContrast, slSaturate].forEach(el => {
-            if (el) updateSliderFill(el);
-        });
-
         function updateAdj(e, valEl) {
-            updateSliderFill(e.target);
             valEl.textContent = e.target.value + '%';
             if (videoPlayer.paused && canvas.width > 0) forceRender();
         }
