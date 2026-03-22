@@ -681,6 +681,9 @@
             uniform float u_bloom;
             uniform float u_halation;
             uniform float u_time;
+            uniform float u_brightness;
+            uniform float u_contrast;
+            uniform float u_saturation;
             out vec4 outColor;
 
             float random(vec2 co) {
@@ -700,8 +703,16 @@
                     col.rgb = texture(u_lut, clamp(col.rgb, 0.0, 1.0)).rgb;
                 }
 
-                // 3. Bloom / Halation (Pseudo-physics)
+                // 3. Basic Adjustments (Unified BCS)
+                // Brightness
+                col.rgb *= u_brightness;
+                // Contrast
+                col.rgb = (col.rgb - 0.5) * u_contrast + 0.5;
+                // Saturation
                 float luminance = dot(col.rgb, vec3(0.299, 0.587, 0.114));
+                col.rgb = mix(vec3(luminance), col.rgb, u_saturation);
+
+                // 4. Bloom / Halation (Pseudo-physics)
                 if (luminance > 0.7) {
                     col.rgb += col.rgb * (u_bloom * 0.4);
                     col.r += (u_halation * 0.2); // Halation red leak
@@ -824,6 +835,11 @@
                     gl.bindTexture(gl.TEXTURE_3D, glLutTex);
                 }
                 
+                // Pass Unified Color Pipeline Uniforms
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_brightness"), slBright.value / 100);
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_contrast"), slContrast.value / 100);
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_saturation"), slSaturate.value / 100);
+                
                 // Pass Cinematic Suite Uniforms
                 gl.uniform1f(gl.getUniformLocation(glProgram, "u_grain"), slGrain.value / 100);
                 gl.uniform1f(gl.getUniformLocation(glProgram, "u_bloom"), slBloom.value / 100);
@@ -834,14 +850,14 @@
                 
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-                // Blend base video and filtered WebGL pass
+                // Draw UNFILTERED base video (BCS is handled by shader on the next layer)
                 ctx.globalAlpha = 1.0;
-                ctx.filter = baseFilter;
+                ctx.filter = 'none';
                 ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
 
                 if (intensity > 0) {
                     ctx.globalAlpha = intensity;
-                    ctx.filter = currentFilter !== 'none' ? `${baseFilter} ${currentFilter}` : baseFilter;
+                    ctx.filter = currentFilter !== 'none' ? currentFilter : 'none';
                     ctx.drawImage(lutCanvas, 0, 0, canvas.width, canvas.height);
                 }
                 ctx.globalAlpha = 1.0; // Reset
