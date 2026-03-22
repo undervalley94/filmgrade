@@ -1103,15 +1103,33 @@
                 ...audioTracks
             ]);
             
-            try {
-                let options = { mimeType: 'video/webm; codecs=vp9' };
-                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                    options = { mimeType: 'video/webm' };
-                }
-                mediaRecorder = new MediaRecorder(combinedStream, options);
-            } catch (e) {
-                alert('このブラウザでは録画機能がサポートされていません');
+            // ---- MimeType Discovery (Safari Compatibility) ----
+            const supportedTypes = [
+                'video/webm; codecs=vp9',
+                'video/webm; codecs=vp8',
+                'video/webm',
+                'video/mp4; codecs=avc1',
+                'video/mp4'
+            ];
+            let chosenType = supportedTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
+
+            if (!chosenType) {
+                alert('このブラウザでは動画の録画機能（MediaRecorder）がサポートされていません。Chromeや最新のSafariをお試しください。');
                 isExporting = false;
+                modalProgress.style.display = 'none';
+                clearInterval(progressInterval);
+                return;
+            }
+            
+            try {
+                mediaRecorder = new MediaRecorder(combinedStream, { mimeType: chosenType });
+                console.log("MediaRecorder initialized with:", chosenType);
+            } catch (e) {
+                console.error("MediaRecorder init failed:", e);
+                alert('録画開始エラー: ' + e.message);
+                isExporting = false;
+                modalProgress.style.display = 'none';
+                clearInterval(progressInterval);
                 return;
             }
 
@@ -1130,14 +1148,15 @@
 
                 // Check for SharedArrayBuffer (COOP/COEP Headers)
                 if (!window.crossOriginIsolated) {
-                    console.error("SharedArrayBuffer (COOP/COEP) not enabled. Falling back to WebM.");
-                    statusText.textContent = '⚠️ セキュリティ制限によりWebM形式で保存します（Vercelの反映待ちの可能性があります）';
+                    console.error("SharedArrayBuffer (COOP/COEP) not enabled. Falling back to native format.");
+                    statusText.textContent = '⚠️ セキュリティ制限により一時的な形式で保存します（Vercelの反映待ちの可能性があります）';
                     setTimeout(() => {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.style.display = 'none';
                         a.href = url;
-                        a.download = isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm';
+                        const ext = mediaRecorder.mimeType.includes('webm') ? 'webm' : 'mp4';
+                        a.download = isProExport ? `filmgrade-pro.${ext}` : `filmgrade-free.${ext}`;
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
@@ -1158,39 +1177,19 @@
                     const isWebM = mime.includes('webm');
                     const inputName = isWebM ? 'input.webm' : 'input.mp4';
                     
-                    console.log(`🚀 REC MIME: ${mime} -> Using ${inputName}`);
-                    
                     statusText.textContent = '📦 ファイルをロードしています...';
                     await ffmpegInstance.writeFile(inputName, await fetchFile(blob));
                     
                     console.log("🚀 Starting MP4 Phase (v6)...");
-                    let conversionSuccess = false;
                     
-                    // --- STAGE 1: H.264 (Highest Compati) ---
-                    try {
-                        statusText.textContent = '📦 MP4エンコード中: H.264...';
-                        console.log("🛠 Try H.264 Transcode...");
-                        await ffmpegInstance.exec([
-                            '-i', inputName, 
-                            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '24', '-pix_fmt', 'yuv420p', 
-                            '-c:a', 'aac', '-b:a', '128k', 
-                            'output.mp4'
-                        ]);
-                        conversionSuccess = true;
-                    } catch (e1) {
-                        console.warn("⚠️ H.264 Failed, trying MPEG4...", e1);
-                        // --- STAGE 2: MPEG4 (Compatibility fallback) ---
-                        try {
-                            statusText.textContent = '📦 MP4エンコード中: リフォーマット...';
-                            await ffmpegInstance.exec(['-i', inputName, '-vcodec', 'mpeg4', '-qscale:v', '4', 'output.mp4']);
-                            conversionSuccess = true;
-                        } catch (e2) {
-                            console.warn("⚠️ MPEG4 Failed, trying Remux...", e2);
-                            // --- STAGE 3: Remux (Copy) ---
-                            await ffmpegInstance.exec(['-i', inputName, '-c', 'copy', 'output.mp4']);
-                            conversionSuccess = true;
-                        }
-                    }
+                    // Main Transcode Phase (H.264)
+                    statusText.textContent = '📦 MP4エンコード中: H.264...';
+                    await ffmpegInstance.exec([
+                        '-i', inputName, 
+                        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '24', '-pix_fmt', 'yuv420p', 
+                        '-c:a', 'aac', '-b:a', '128k', 
+                        'output.mp4'
+                    ]);
                     
                     const data = await ffmpegInstance.readFile('output.mp4');
                     const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
@@ -1206,13 +1205,14 @@
                     
                 } catch (e) {
                     console.error("FFmpeg Breakdown Error (V6):", e);
-                    statusText.innerHTML = `<span style="color:#f87171">❌ 変換エラー: ${e.message || 'Engine Fail'}</span><br>WebMで保存します。`;
+                    statusText.innerHTML = `<span style="color:#f87171">❌ 変換エラー: ${e.message || 'Engine Fail'}</span><br>録画データで保存します。`;
                     
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.style.display = 'none';
                     a.href = url;
-                    a.download = isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm';
+                    const ext = mediaRecorder.mimeType.includes('webm') ? 'webm' : 'mp4';
+                    a.download = isProExport ? `filmgrade-pro.${ext}` : `filmgrade-free.${ext}`;
                     document.body.appendChild(a);
                     a.click();
                     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
