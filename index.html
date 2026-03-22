@@ -1319,9 +1319,12 @@
                     const mp4Blob = new Blob([data], { type: 'video/mp4' });
                     downloadBlob(mp4Blob, isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4');
                 } catch (e) {
-                    console.warn("Remux failed, falling back to raw recording:", e);
-                    statusText.innerHTML = `<span style="color:#f87171">⚠️ MP4変換に失敗しました（WebM形式で保存します）</span>`;
-                    await new Promise(r => setTimeout(r, 2000));
+                    console.error("FFmpeg Breakdown Error (v37):", e);
+                    const errorMsg = e.message || 'Engine Fail';
+                    statusText.innerHTML = `<span style="color:#f87171">⚠️ MP4変換に失敗しました: ${errorMsg}</span><br><small>セキュリティ制限(COOP/COEP)によりWebM形式で保存します。</small>`;
+                    
+                    // Don't keep the user waiting, fallback to WebM
+                    await new Promise(r => setTimeout(r, 3000));
                     downloadBlob(blob, isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm');
                 }
                 finishExport();
