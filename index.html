@@ -213,7 +213,10 @@
         .progress-container { width: 100%; height: 8px; background: #333; border-radius: 4px; overflow: hidden; margin: 20px 0; }
         #progress-bar-fill { width: 0%; height: 100%; background: var(--accent); transition: width 0.1s linear; }
         .progress-percentage { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-        #debug-mode-badge { position: fixed; bottom: 10px; right: 10px; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #333; color: #888; z-index: 9999; }
+        #debug-mode-badge { position: fixed; bottom: 10px; right: 10px; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #333; color: #888; z-index: 9999; cursor: pointer; }
+        #debug-log-view { position: fixed; bottom: 35px; right: 10px; width: 300px; max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.9); border: 1px solid #444; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 9px; color: #aaa; z-index: 9998; display: none; pointer-events: none; }
+        .log-line { border-bottom: 1px solid #222; margin-bottom: 2px; }
+        .log-error { color: #f87171; }
 
 
         /* Mobile & Vertical Video Responsiveness */
@@ -246,7 +249,8 @@
 </head>
 <body>
     <!-- App Header -->
-    <div id="debug-mode-badge">Checking engine...</div>
+    <div id="debug-mode-badge" onclick="document.getElementById('debug-log-view').style.display = document.getElementById('debug-log-view').style.display === 'none' ? 'block' : 'none'">Checking engine...</div>
+    <div id="debug-log-view"></div>
     <header class="workspace-header">
         <div class="logo-wrap">
             <div class="logo">FilmGrade</div>
@@ -446,8 +450,22 @@
         const lutCards = document.querySelectorAll('.lut-card');
         const btnMute = document.getElementById('btn-toggle-mute');
 
-        // Debug Indicator
+        // Debug Monitor & Logger Override
         const debugBadge = document.getElementById('debug-mode-badge');
+        const debugLogView = document.getElementById('debug-log-view');
+        
+        function addLog(msg, isError = false) {
+            const line = document.createElement('div');
+            line.className = 'log-line' + (isError ? ' log-error' : '');
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            debugLogView.prepend(line);
+        }
+
+        const originalLog = console.log;
+        const originalError = console.error;
+        console.log = (...args) => { originalLog(...args); addLog(args.join(' ')); };
+        console.error = (...args) => { originalError(...args); addLog(args.join(' '), true); };
+
         if (window.crossOriginIsolated) {
             debugBadge.textContent = '🚀 Performance Mode (MT)';
             debugBadge.style.color = '#4ade80';
@@ -1093,28 +1111,42 @@
                 
                 try {
                     const ffmpegInstance = await initFFmpeg();
-                    await ffmpegInstance.writeFile('input.webm', await fetchFile(blob));
+                    const mime = mediaRecorder.mimeType;
+                    const isWebM = mime.includes('webm');
+                    const inputName = isWebM ? 'input.webm' : 'input.mp4';
                     
-                    console.log("🚀 Starting MP4 Phase (v5)...");
-                    statusText.textContent = '📦 MP4エンコード中: 互換性チェック中...';
+                    console.log(`🚀 REC MIME: ${mime} -> Using ${inputName}`);
                     
+                    statusText.textContent = '📦 ファイルをロードしています...';
+                    await ffmpegInstance.writeFile(inputName, await fetchFile(blob));
+                    
+                    console.log("🚀 Starting MP4 Phase (v6)...");
+                    let conversionSuccess = false;
+                    
+                    // --- STAGE 1: H.264 (Highest Compati) ---
                     try {
-                        console.log("🛠 Attempting Stage 1: H.264 Transcode (High-Compatibility)...");
-                        // Attempt full transcode for maximum SNS/iOS compatibility
-                        // Using libx264, ultrafast preset, yuv420p pixel format
+                        statusText.textContent = '📦 MP4エンコード中: H.264...';
+                        console.log("🛠 Try H.264 Transcode...");
                         await ffmpegInstance.exec([
-                            '-i', 'input.webm',
-                            '-c:v', 'libx264',
-                            '-preset', 'ultrafast',
-                            '-crf', '22',
-                            '-pix_fmt', 'yuv420p',
-                            '-c:a', 'aac',
+                            '-i', inputName, 
+                            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '24', '-pix_fmt', 'yuv420p', 
+                            '-c:a', 'aac', '-b:a', '128k', 
                             'output.mp4'
                         ]);
-                    } catch (err1) {
-                        console.warn("⚠️ Stage 1 Failed (Transcode). Falling back to Stage 2: Remux...", err1);
-                        statusText.textContent = '📦 MP4エンコード中: 低速互換モードに切り替え...';
-                        await ffmpegInstance.exec(['-i', 'input.webm', '-c', 'copy', 'output.mp4']);
+                        conversionSuccess = true;
+                    } catch (e1) {
+                        console.warn("⚠️ H.264 Failed, trying MPEG4...", e1);
+                        // --- STAGE 2: MPEG4 (Compatibility fallback) ---
+                        try {
+                            statusText.textContent = '📦 MP4エンコード中: リフォーマット...';
+                            await ffmpegInstance.exec(['-i', inputName, '-vcodec', 'mpeg4', '-qscale:v', '4', 'output.mp4']);
+                            conversionSuccess = true;
+                        } catch (e2) {
+                            console.warn("⚠️ MPEG4 Failed, trying Remux...", e2);
+                            // --- STAGE 3: Remux (Copy) ---
+                            await ffmpegInstance.exec(['-i', inputName, '-c', 'copy', 'output.mp4']);
+                            conversionSuccess = true;
+                        }
                     }
                     
                     const data = await ffmpegInstance.readFile('output.mp4');
@@ -1127,13 +1159,10 @@
                     a.download = isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4';
                     document.body.appendChild(a);
                     a.click();
-                    setTimeout(() => {
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                    }, 2000); // 2 seconds for safety
+                    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
                     
                 } catch (e) {
-                    console.error("FFmpeg Extraction Fail (V5):", e);
+                    console.error("FFmpeg Breakdown Error (V6):", e);
                     statusText.innerHTML = `<span style="color:#f87171">❌ 変換エラー: ${e.message || 'Engine Fail'}</span><br>WebMで保存します。`;
                     
                     const url = URL.createObjectURL(blob);
@@ -1143,10 +1172,7 @@
                     a.download = isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm';
                     document.body.appendChild(a);
                     a.click();
-                    setTimeout(() => {
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                    }, 1000);
+                    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
                 }
                 
                 finishExport();
