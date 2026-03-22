@@ -1095,9 +1095,27 @@
                     const ffmpegInstance = await initFFmpeg();
                     await ffmpegInstance.writeFile('input.webm', await fetchFile(blob));
                     
-                    console.log("🚀 Starting MP4 Remuxing...");
-                    // Try copying streams to MP4 container
-                    await ffmpegInstance.exec(['-i', 'input.webm', '-c', 'copy', 'output.mp4']);
+                    console.log("🚀 Starting MP4 Phase (v5)...");
+                    statusText.textContent = '📦 MP4エンコード中: 互換性チェック中...';
+                    
+                    try {
+                        console.log("🛠 Attempting Stage 1: H.264 Transcode (High-Compatibility)...");
+                        // Attempt full transcode for maximum SNS/iOS compatibility
+                        // Using libx264, ultrafast preset, yuv420p pixel format
+                        await ffmpegInstance.exec([
+                            '-i', 'input.webm',
+                            '-c:v', 'libx264',
+                            '-preset', 'ultrafast',
+                            '-crf', '22',
+                            '-pix_fmt', 'yuv420p',
+                            '-c:a', 'aac',
+                            'output.mp4'
+                        ]);
+                    } catch (err1) {
+                        console.warn("⚠️ Stage 1 Failed (Transcode). Falling back to Stage 2: Remux...", err1);
+                        statusText.textContent = '📦 MP4エンコード中: 低速互換モードに切り替え...';
+                        await ffmpegInstance.exec(['-i', 'input.webm', '-c', 'copy', 'output.mp4']);
+                    }
                     
                     const data = await ffmpegInstance.readFile('output.mp4');
                     const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
@@ -1112,10 +1130,10 @@
                     setTimeout(() => {
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
-                    }, 1000);
+                    }, 2000); // 2 seconds for safety
                     
                 } catch (e) {
-                    console.error("FFmpeg Breakdown Error (V3):", e);
+                    console.error("FFmpeg Extraction Fail (V5):", e);
                     statusText.innerHTML = `<span style="color:#f87171">❌ 変換エラー: ${e.message || 'Engine Fail'}</span><br>WebMで保存します。`;
                     
                     const url = URL.createObjectURL(blob);
@@ -1128,7 +1146,7 @@
                     setTimeout(() => {
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
-                    }, 100);
+                    }, 1000);
                 }
                 
                 finishExport();
