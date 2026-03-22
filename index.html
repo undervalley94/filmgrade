@@ -1029,6 +1029,25 @@
                 const statusText = document.getElementById('export-status-text');
                 const progressFill = document.getElementById('progress-bar-fill');
                 const progressText = document.getElementById('export-percent');
+
+                // Check for SharedArrayBuffer (COOP/COEP Headers)
+                if (!window.crossOriginIsolated) {
+                    console.error("SharedArrayBuffer (COOP/COEP) not enabled. Falling back to WebM.");
+                    statusText.textContent = '⚠️ セキュリティ制限によりWebM形式で保存します（Vercelの反映待ちの可能性があります）';
+                    setTimeout(() => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        finishExport();
+                    }, 2000);
+                    return;
+                }
                 
                 statusText.textContent = '📦 MP4形式に変換中... (数秒かかります)';
                 progressFill.style.width = '100%';
@@ -1037,7 +1056,7 @@
                 try {
                     const ffmpegInstance = await initFFmpeg();
                     await ffmpegInstance.writeFile('input.webm', await fetchFile(blob));
-                    // Simple passthrough to MP4 container (very fast if codecs are compatible)
+                    // Using fast remuxing (copy) - handles most Chromium WebM outputs into MP4 container
                     await ffmpegInstance.exec(['-i', 'input.webm', '-c', 'copy', 'output.mp4']);
                     const data = await ffmpegInstance.readFile('output.mp4');
                     const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
@@ -1055,7 +1074,7 @@
                     }, 100);
                 } catch (e) {
                     console.error("FFmpeg Error:", e);
-                    // Fallback to WebM if conversion fails
+                    statusText.textContent = '❌ 変換エラーが発生しました。WebMで保存します。';
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.style.display = 'none';
@@ -1068,7 +1087,11 @@
                         URL.revokeObjectURL(url);
                     }, 100);
                 }
+                
+                finishExport();
+            };
 
+            function finishExport() {
                 btnExport.textContent = '⬇️ エクスポート';
                 btnExport.disabled = false;
                 isExporting = false;
@@ -1080,7 +1103,7 @@
                 videoPlayer.loop = true;
                 videoPlayer.currentTime = 0;
                 videoPlayer.play().catch(()=>{});
-            };
+            }
 
             // Start recording
             videoPlayer.currentTime = 0;
