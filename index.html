@@ -943,6 +943,21 @@
             }, 3000);
         });
 
+        let ffmpeg = null;
+        const { FFmpeg } = FFmpegWASM;
+        const { fetchFile, toBlobURL } = FFmpegUtil;
+
+        async function initFFmpeg() {
+            if (ffmpeg) return ffmpeg;
+            ffmpeg = new FFmpeg();
+            const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+            await ffmpeg.load({
+                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            });
+            return ffmpeg;
+        }
+
         function startRecordingProcess() {
             isExporting = true;
             
@@ -1007,20 +1022,53 @@
                 if (e.data.size > 0) recordedChunks.push(e.data);
             };
 
-            mediaRecorder.onstop = () => {
+            mediaRecorder.onstop = async () => {
                 const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm';
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 100);
                 
+                // --- MP4 Conversion Phase ---
+                const statusText = document.getElementById('export-status-text');
+                const progressFill = document.getElementById('progress-bar-fill');
+                const progressText = document.getElementById('export-percent');
+                
+                statusText.textContent = '📦 MP4形式に変換中... (数秒かかります)';
+                progressFill.style.width = '100%';
+                progressText.textContent = 'Converting...';
+                
+                try {
+                    const ffmpegInstance = await initFFmpeg();
+                    await ffmpegInstance.writeFile('input.webm', await fetchFile(blob));
+                    // Simple passthrough to MP4 container (very fast if codecs are compatible)
+                    await ffmpegInstance.exec(['-i', 'input.webm', '-c', 'copy', 'output.mp4']);
+                    const data = await ffmpegInstance.readFile('output.mp4');
+                    const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+                    
+                    const url = URL.createObjectURL(mp4Blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                } catch (e) {
+                    console.error("FFmpeg Error:", e);
+                    // Fallback to WebM if conversion fails
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 100);
+                }
+
                 btnExport.textContent = '⬇️ エクスポート';
                 btnExport.disabled = false;
                 isExporting = false;
@@ -1052,6 +1100,10 @@
         }
     </script>
     
+    <!-- FFmpeg.wasm & Utils -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/umd/ffmpeg.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+
     <!-- Firebase Authentication SDK Integration (Compat version) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
