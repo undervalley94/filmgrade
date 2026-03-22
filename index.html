@@ -1005,16 +1005,28 @@
             // Enable internal logging for debugging
             ffInstanceResult.on('log', ({ message }) => {
                 console.log("FFmpeg Log:", message);
-                // Simple feedback for long encodings
                 if (message.includes('frame=')) {
                     statusText.textContent = `📦 MP4エンコード中: ${message.split('fps=')[0]}`;
                 }
             });
 
+            // Bypass Cross-Origin Worker Restrictions
+            let workerObjectURL = undefined;
+            if (isMT) {
+                console.log("🛠 Fetching MT Worker locally...");
+                const workerReq = await fetch(`${baseURL}/ffmpeg-core.worker.js`);
+                if (workerReq.ok) {
+                    const workerBlob = await workerReq.blob();
+                    workerObjectURL = URL.createObjectURL(workerBlob);
+                } else {
+                    console.warn("⚠️ Failed to load worker, falling back to ST internally.");
+                }
+            }
+
             await ffInstanceResult.load({
                 coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
                 wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-                workerURL: isMT ? await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript') : undefined
+                workerURL: workerObjectURL
             });
             return ffInstanceResult;
         }
