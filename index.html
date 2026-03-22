@@ -1316,7 +1316,7 @@
                     clearTimeout(convTimeout);
                     
                     const data = await ffmpegInstance.readFile('output.mp4');
-                    const mp4Blob = new Blob([data.buffer], { type: 'video/mp4' });
+                    const mp4Blob = new Blob([data], { type: 'video/mp4' });
                     downloadBlob(mp4Blob, isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4');
                 } catch (e) {
                     console.warn("Remux failed, falling back to raw recording:", e);
