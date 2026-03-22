@@ -976,13 +976,13 @@
             }, 3000);
         });
 
-        let ffmpeg = null;
+        let ffInstanceResult = null;
         const { FFmpeg } = FFmpegWASM;
         const { fetchFile, toBlobURL } = FFmpegUtil;
 
         async function initFFmpeg() {
-            if (ffmpeg) return ffmpeg;
-            ffmpeg = new FFmpeg();
+            if (ffInstanceResult) return ffInstanceResult;
+            ffInstanceResult = new FFmpeg();
             
             // --- Hybrid Engine (MT vs ST) ---
             const isMT = window.crossOriginIsolated;
@@ -998,7 +998,7 @@
             }
 
             // Enable internal logging for debugging
-            ffmpeg.on('log', ({ message }) => {
+            ffInstanceResult.on('log', ({ message }) => {
                 console.log("FFmpeg Log:", message);
                 // Simple feedback for long encodings
                 if (message.includes('frame=')) {
@@ -1006,12 +1006,12 @@
                 }
             });
 
-            await ffmpeg.load({
+            await ffInstanceResult.load({
                 coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
                 wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
                 workerURL: isMT ? await toBlobURL(`${baseURL}/ffmpeg-core.worker.js`, 'text/javascript') : undefined
             });
-            return ffmpeg;
+            return ffInstanceResult;
         }
 
         function startRecordingProcess() {
