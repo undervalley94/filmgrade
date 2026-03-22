@@ -1230,36 +1230,59 @@
             const totalFrames = Math.ceil(duration * fps);
             
             // 1. Audio Extraction (Pro quality)
-            statusText.textContent = '🎵 音声を抽出しています...';
-            const baseFile = fileInput.files[0] || (await fetch(videoPlayer.src).then(r => r.blob()));
-            await ffmpegInstance.writeFile('src.mp4', await fetchFile(baseFile));
-            await ffmpegInstance.exec(['-i', 'src.mp4', '-vn', '-acodec', 'copy', 'audio.m4a']);
+            try {
+                statusText.textContent = '🎵 音声を準備しています...';
+                // Try from file input (fastest) or fetch (slowest)
+                let baseFile = fileInput.files[0];
+                if (!baseFile && videoPlayer.src.startsWith('blob:')) {
+                    // We don't have the original file handle, must fetch
+                    const response = await fetch(videoPlayer.src);
+                    baseFile = await response.blob();
+                }
+                
+                if (baseFile) {
+                    statusText.textContent = '🎵 音声トラックを抽出中...';
+                    await ffmpegInstance.writeFile('src.mp4', await fetchFile(baseFile));
+                    await ffmpegInstance.exec(['-i', 'src.mp4', '-vn', '-acodec', 'copy', 'audio.m4a']);
+                    console.log("Audio extracted successfully (Direct Copy)");
+                }
+            } catch (e) {
+                console.warn("Audio extraction failed, will export without audio or try fallback:", e);
+                statusText.textContent = '⚠️ 音声の抽出に失敗しました（無音で作成します）';
+                await new Promise(r => setTimeout(r, 2000));
+            }
 
             // 2. Frame-by-Frame Render Loop
-            statusText.textContent = '🎞️ フレームをレンダリングしています...';
+            statusText.textContent = '🎞️ 高画質レンダリングを開始します...';
             for (let i = 0; i < totalFrames; i++) {
-                if (!isExporting) break; // Cancel
+                if (!isExporting) break;
                 
                 const time = i / fps;
                 videoPlayer.currentTime = time;
                 
-                // Wait for seek and render
-                await new Promise(resolve => {
+                // Wait for seek with safety timeout
+                await new Promise((resolve) => {
+                    const timeout = setTimeout(() => {
+                        console.warn(`Seek timeout at frame ${i}`);
+                        onSeeked();
+                    }, 2000); // 2s max per frame
+
                     const onSeeked = () => {
+                        clearTimeout(timeout);
                         videoPlayer.removeEventListener('seeked', onSeeked);
-                        forceRender(); // Ensure GPU update
+                        forceRender(); 
                         resolve();
                     };
                     videoPlayer.addEventListener('seeked', onSeeked);
                 });
 
                 // Capture Frame to FFmpeg VFS
-                const frameBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+                const frameBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
                 await ffmpegInstance.writeFile(`f${i}.jpg`, await fetchFile(frameBlob));
 
                 // Progress Update
-                const percent = Math.floor((i / totalFrames) * 100);
-                progressFill.style.width = (percent * 0.8) + '%'; // 80% for rendering
+                const percent = Math.min(99, Math.floor((i / totalFrames) * 100));
+                progressFill.style.width = (percent * 0.8) + '%'; 
                 progressText.textContent = percent + '%';
                 statusText.textContent = `🎞️ レンダリング中: ${i}/${totalFrames} frames`;
             }
