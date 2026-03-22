@@ -468,11 +468,55 @@
                         <span id="val-contrast" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">100%</span>
                     </div>
 
-                    <!-- Saturation -->
                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
                         <span style="font-size: 11px; width: 68px; color: var(--text-muted);">彩度</span>
                         <input type="range" id="sl-saturate" min="0" max="200" step="1" value="100" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
                         <span id="val-saturate" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">100%</span>
+                    </div>
+
+                    <div class="section-divider" style="height: 1px; background: var(--border-color); margin: 16px 8px;"></div>
+                    <div class="section-title">Cinematic Suite</div>
+
+                    <!-- Grain -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 11px; width: 68px; color: var(--text-muted);">粒子感</span>
+                        <input type="range" id="sl-grain" min="0" max="100" step="1" value="0" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
+                        <span id="val-grain" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">0%</span>
+                    </div>
+
+                    <!-- Bloom -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 11px; width: 68px; color: var(--text-muted);">ブルーム</span>
+                        <input type="range" id="sl-bloom" min="0" max="100" step="1" value="0" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
+                        <span id="val-bloom" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">0%</span>
+                    </div>
+
+                    <!-- Halation -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 11px; width: 68px; color: var(--text-muted);">ハレーション</span>
+                        <input type="range" id="sl-halation" min="0" max="100" step="1" value="0" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
+                        <span id="val-halation" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">0%</span>
+                    </div>
+
+                    <!-- Vignette -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 11px; width: 68px; color: var(--text-muted);">周辺減光</span>
+                        <input type="range" id="sl-vignette" min="0" max="100" step="1" value="0" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
+                        <span id="val-vignette" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">0%</span>
+                    </div>
+
+                    <!-- Chromatic -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 11px; width: 68px; color: var(--text-muted);">色収差</span>
+                        <input type="range" id="sl-chromatic" min="0" max="100" step="1" value="0" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
+                        <span id="val-chromatic" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">0%</span>
+                    </div>
+
+                    <!-- Letterbox -->
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 11px; width: 68px; color: var(--text-muted);">黒帯 (LB)</span>
+                        <input type="range" id="sl-lb" min="0" max="50" step="1" value="0" style="flex: 1; accent-color: var(--text-main); cursor: pointer;">
+                        <span id="val-lb" style="font-size: 11px; width: 36px; text-align: right; color: var(--text-main);">0%</span>
                     </div>
                     
                     <button class="btn btn-outline" style="width: 100%; font-size: 11px; padding: 6px;" onclick="resetAdjustments()">数値をリセット</button>
@@ -549,14 +593,33 @@
         const valContrast = document.getElementById('val-contrast');
         const valSaturate = document.getElementById('val-saturate');
 
+        const slGrain = document.getElementById('sl-grain');
+        const valGrain = document.getElementById('val-grain');
+        const slBloom = document.getElementById('sl-bloom');
+        const valBloom = document.getElementById('val-bloom');
+        const slHalation = document.getElementById('sl-halation');
+        const valHalation = document.getElementById('val-halation');
+        const slVignette = document.getElementById('sl-vignette');
+        const valVignette = document.getElementById('val-vignette');
+        const slChromatic = document.getElementById('sl-chromatic');
+        const valChromatic = document.getElementById('val-chromatic');
+        const slLB = document.getElementById('sl-lb');
+        const valLB = document.getElementById('val-lb');
+
         function updateAdj(e, valEl) {
-            valEl.textContent = e.target.value + '%';
+            valEl.textContent = (e.target.id === 'sl-lb' ? e.target.value : e.target.value) + '%';
             if (videoPlayer.paused && canvas.width > 0) forceRender();
         }
 
         slBright.addEventListener('input', e => updateAdj(e, valBright));
         slContrast.addEventListener('input', e => updateAdj(e, valContrast));
         slSaturate.addEventListener('input', e => updateAdj(e, valSaturate));
+        slGrain.addEventListener('input', e => updateAdj(e, valGrain));
+        slBloom.addEventListener('input', e => updateAdj(e, valBloom));
+        slHalation.addEventListener('input', e => updateAdj(e, valHalation));
+        slVignette.addEventListener('input', e => updateAdj(e, valVignette));
+        slChromatic.addEventListener('input', e => updateAdj(e, valChromatic));
+        slLB.addEventListener('input', e => updateAdj(e, valLB));
 
         btnMute.addEventListener('click', () => {
             if (audioGain) {
@@ -573,6 +636,12 @@
             slBright.value = 100; valBright.textContent = '100%';
             slContrast.value = 100; valContrast.textContent = '100%';
             slSaturate.value = 100; valSaturate.textContent = '100%';
+            slGrain.value = 0; valGrain.textContent = '0%';
+            slBloom.value = 0; valBloom.textContent = '0%';
+            slHalation.value = 0; valHalation.textContent = '0%';
+            slVignette.value = 0; valVignette.textContent = '0%';
+            slChromatic.value = 0; valChromatic.textContent = '0%';
+            slLB.value = 0; valLB.textContent = '0%';
             if (videoPlayer.paused && canvas.width > 0) forceRender();
         };
 
@@ -606,13 +675,53 @@
             uniform sampler2D u_video;
             uniform sampler3D u_lut;
             uniform int u_useLut;
+            uniform float u_grain;
+            uniform float u_vignette;
+            uniform float u_chromatic;
+            uniform float u_bloom;
+            uniform float u_halation;
+            uniform float u_lb;
+            uniform float u_time;
             out vec4 outColor;
 
+            float random(vec2 co) {
+                return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+            }
+
             void main() {
-                vec4 col = texture(u_video, v_texCoord);
+                // 1. Chromatic Aberration (Sampling offsets)
+                float chromOffset = u_chromatic * 0.01;
+                float r = texture(u_video, v_texCoord + vec2(chromOffset, 0.0)).r;
+                float g = texture(u_video, v_texCoord).g;
+                float b = texture(u_video, v_texCoord - vec2(chromOffset, 0.0)).b;
+                vec4 col = vec4(r, g, b, 1.0);
+
+                // 2. 3D LUT Application
                 if (u_useLut == 1) {
                     col.rgb = texture(u_lut, clamp(col.rgb, 0.0, 1.0)).rgb;
                 }
+
+                // 3. Bloom / Halation (Pseudo-physics)
+                float luminance = dot(col.rgb, vec3(0.299, 0.587, 0.114));
+                if (luminance > 0.7) {
+                    col.rgb += col.rgb * (u_bloom * 0.4);
+                    col.r += (u_halation * 0.2); // Halation red leak
+                }
+
+                // 4. Film Grain
+                float n = random(v_texCoord + u_time);
+                col.rgb += (n - 0.5) * (u_grain * 0.15);
+
+                // 5. Vignette
+                vec2 dist = v_texCoord - 0.5;
+                float vignette = 1.0 - dot(dist, dist) * (u_vignette * 2.0);
+                col.rgb *= clamp(vignette, 0.0, 1.0);
+
+                // 6. Letterbox (Hard cut)
+                if (v_texCoord.y < u_lb || v_texCoord.y > 1.0 - u_lb) {
+                    col.rgb = vec3(0.0);
+                }
+
                 outColor = col;
             }`;
 
@@ -720,6 +829,15 @@
                     gl.activeTexture(gl.TEXTURE1);
                     gl.bindTexture(gl.TEXTURE_3D, glLutTex);
                 }
+                
+                // Pass Cinematic Suite Uniforms
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_grain"), slGrain.value / 100);
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_bloom"), slBloom.value / 100);
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_halation"), slHalation.value / 100);
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_vignette"), slVignette.value / 100);
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_chromatic"), slChromatic.value / 100);
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_lb"), (slLB.value / 100) * 0.5);
+                gl.uniform1f(gl.getUniformLocation(glProgram, "u_time"), Math.random()); // Noise seed
                 
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
