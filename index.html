@@ -13,10 +13,8 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://filmgrade.vercel.app"> <!-- 公開URLが決まったらここを修正 -->
     
-    <!-- FFmpeg.wasm & Utils (100% Self-Hosted / Standard Way) -->
-    <!-- FFmpeg.wasm & Utils (100% Self-Hosted Security) -->
-    <script src="./ffmpeg/lib/ffmpeg.js"></script>
-    <script src="./ffmpeg/lib/ffmpeg-util.js"></script>
+    <!-- Mp4-Muxer (Ultra-Lightweight / v43) -->
+    <script src="https://unpkg.com/mp4-muxer@4.1.3/dist/mp4-muxer.mjs" type="module"></script>
 
     <style>
         /* CSS Reset & Base */
@@ -1132,8 +1130,7 @@
                 alert('動画が読み込まれていません');
                 return;
             }
-            if (mediaRecorder && mediaRecorder.state === 'recording') return;
-
+            
             // Step 2: Check Login
             const auth = firebase.auth();
             if (!auth.currentUser) {
@@ -1141,7 +1138,7 @@
                 return;
             }
 
-            // Step 3: Show Plan Selector (Only if not already Pro)
+            // Step 3: Show Plan Selector
             if (userIsPro) {
                 isProExport = true;
                 startExportProcess();
@@ -1149,7 +1146,6 @@
                 document.getElementById('modal-plans').style.display = 'flex';
             }
         });
-
 
         // Plan Selection logic
         document.getElementById('plan-free').addEventListener('click', () => {
@@ -1162,7 +1158,6 @@
             document.getElementById('modal-plans').style.display = 'none';
             document.getElementById('modal-stripe').style.display = 'flex';
             
-            // Simulate Stripe Checkout Redirect + Webhook callback
             setTimeout(() => {
                 document.getElementById('stripe-loading').style.display = 'none';
                 document.getElementById('stripe-success').style.display = 'block';
@@ -1173,202 +1168,81 @@
             }, 3000);
         });
 
-        let ffPromise = null;
-        async function initFFmpeg() {
-            if (ffPromise) return ffPromise;
-            
-            ffPromise = (async () => {
-                const { FFmpeg } = FFmpegWASM;
-                const { toBlobURL } = FFmpegUtil;
-                const ffmpegInstance = new FFmpeg();
-                
-                // --- Safe Self-Hosting Logic ---
-                const isIsolated = window.crossOriginIsolated;
-                const localBase = isIsolated ? './ffmpeg/core-mt' : './ffmpeg/core-st';
-                
-                const statusText = document.getElementById('export-status-text');
-                ffmpegInstance.on('log', ({ message }) => {
-                    console.log("FFmpeg Log:", message);
-                    if (message.includes('frame=')) {
-                        statusText.textContent = `📦 MP4処理中: ${message.split('fps=')[0]}`;
-                    }
-                });
-
-                // Load from same-origin (Local) for maximum worker security
-                await ffmpegInstance.load({
-                    coreURL: await toBlobURL(`${localBase}/ffmpeg-core.js`, 'text/javascript'),
-                    wasmURL: await toBlobURL(`${localBase}/ffmpeg-core.wasm`, 'application/wasm'),
-                    workerURL: isIsolated ? await toBlobURL(`${localBase}/ffmpeg-core.worker.js`, 'text/javascript') : undefined
-                });
-                return ffmpegInstance;
-            })();
-            
-            return ffPromise;
-        }
-
         async function startExportProcess() {
             isExporting = true;
-            
-            // Show Export Progress UI
             const modalProgress = document.getElementById('modal-export-progress');
             const progressFill = document.getElementById('progress-bar-fill');
             const progressText = document.getElementById('export-percent');
             const statusText = document.getElementById('export-status-text');
-            
             modalProgress.style.display = 'flex';
-            progressFill.style.width = '0%';
-            progressText.textContent = '0%';
-            statusText.textContent = '🚀 エクスポートの準備中...';
-
-            // Capture streams (Real-time for speed)
-            const fps = 30;
-            const canvasStream = canvas.captureStream(fps);
-            
-            // Universal Audio Capture via Web Audio API
-            if (!audioCtx) {
-                try {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    audioSource = audioCtx.createMediaElementSource(videoPlayer);
-                    audioDest = audioCtx.createMediaStreamDestination();
-                    audioGain = audioCtx.createGain();
-                    audioSource.connect(audioGain);
-                    audioGain.connect(audioDest);
-                    audioGain.connect(audioCtx.destination);
-                    audioGain.gain.value = videoPlayer.muted ? 0 : 1;
-                } catch (e) {
-                    console.warn("Audio Context init failed:", e);
-                }
-            }
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-
-            const combinedStream = new MediaStream([
-                ...canvasStream.getVideoTracks(),
-                ...(audioDest ? audioDest.stream.getAudioTracks() : [])
-            ]);
-
-            // ---- MimeType Selection (Adaptive) ----
-            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-            
-            // Chrome can record H.264 in WebM, which is easy to remux to MP4
-            const typeH264 = 'video/webm; codecs=h264';
-            const typeVP9 = 'video/webm; codecs=vp9';
-            const typeDefault = 'video/webm';
-            
-            let chosenType = '';
-            if (isSafari && MediaRecorder.isTypeSupported('video/mp4')) {
-                chosenType = 'video/mp4';
-            } else if (MediaRecorder.isTypeSupported(typeH264)) {
-                chosenType = typeH264;
-            } else if (MediaRecorder.isTypeSupported(typeVP9)) {
-                chosenType = typeVP9;
-            } else {
-                chosenType = typeDefault;
-            }
+            progressFill.style.width = '0%'; progressText.textContent = '0%';
+            statusText.textContent = '🎨 独自エンジン起動中...';
 
             try {
-                mediaRecorder = new MediaRecorder(combinedStream, { 
-                    mimeType: chosenType,
-                    videoBitsPerSecond: 8000000 // 8Mbps High Quality
+                const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@4.1.3/+esm');
+                const fps = 30;
+                const width = canvas.width;
+                const height = canvas.height;
+                const duration = videoPlayer.duration;
+                const totalFrames = Math.floor(duration * fps);
+
+                const muxer = new Muxer({
+                    target: new ArrayBufferTarget(),
+                    video: { codec: 'avc', width, height },
+                    fastStart: 'in-memory'
                 });
-            } catch (e) {
-                console.error("MediaRecorder init failed:", e);
-                chosenType = 'video/webm';
-                mediaRecorder = new MediaRecorder(combinedStream);
-            }
 
-            recordedChunks = [];
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) recordedChunks.push(e.data);
-            };
+                const videoEncoder = new VideoEncoder({
+                    output: (chunk, metadata) => muxer.addVideoChunk(chunk, metadata),
+                    error: (e) => console.error("VideoEncoder Error:", e)
+                });
 
-            mediaRecorder.onstop = async () => {
-                const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
-                statusText.innerHTML = '📦 <b>MP4形式を最終処理中...</b>';
+                videoEncoder.configure({
+                    codec: 'avc1.42E01F', width, height, bitrate: 8000000, framerate: fps
+                });
+
+                statusText.textContent = '🎞️ 高品質レンダリング中...';
+                videoPlayer.pause();
                 
-                // If it's already MP4 (Safari), just download
-                if (mediaRecorder.mimeType.includes('mp4')) {
-                    downloadBlob(blob, isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4');
-                    finishExport();
-                    return;
+                for (let i = 0; i < totalFrames; i++) {
+                    if (!isExporting) break;
+                    const timestamp = (i / fps) * 1000000;
+                    videoPlayer.currentTime = i / fps;
+                    await new Promise(resolve => {
+                        const onSeeked = () => {
+                            videoPlayer.removeEventListener('seeked', onSeeked);
+                            forceRender(); resolve();
+                        };
+                        videoPlayer.addEventListener('seeked', onSeeked);
+                    });
+                    const frame = new VideoFrame(canvas, { timestamp });
+                    videoEncoder.encode(frame, { keyFrame: i % 30 === 0 });
+                    frame.close();
+                    const percent = Math.floor((i / totalFrames) * 100);
+                    progressFill.style.width = percent + '%'; progressText.textContent = percent + '%';
+                    statusText.textContent = `🎞️ レンダリング中: ${i}/${totalFrames} frames`;
                 }
 
-                // If it's WebM (Chrome), remux to MP4 instantly
-                try {
-                    statusText.innerHTML = '📦 <b>動画エンジンを起動中...</b><br><small>FFmpeg（動画の変換エンジン）を準備しています。</small>';
-                    const ffmpegInstance = await initFFmpeg();
-                    const { fetchFile } = FFmpegUtil;
-                    statusText.textContent = '📦 高速MP4変換を実行中...';
-                    
-                    const inputBlob = await fetchFile(blob);
-                    await ffmpegInstance.writeFile('input.webm', inputBlob);
-                    
-                    const isH264 = mediaRecorder.mimeType.includes('h264');
-                    console.log(`Remuxing from ${mediaRecorder.mimeType}. H264 detected: ${isH264}`);
-                    
-                    // Transcode if not H264 (VP9/VP8 can't be 'copied' to MP4 safely)
-                    const vcodec = isH264 ? 'copy' : 'libx264';
-                    const args = [
-                        '-i', 'input.webm', 
-                        '-c:v', vcodec, 
-                        '-preset', 'ultrafast', '-crf', '22',
-                        '-c:a', 'aac', '-b:a', '128k', 
-                        '-y', 'output.mp4'
-                    ];
-
-                    // Set safety timeout for conversion
-                    const convTimeout = setTimeout(() => {
-                        console.error("FFmpeg conversion timed out.");
-                        throw new Error("Conversion Timeout");
-                    }, 60000); // 60s max for remux/transcode
-
-                    await ffmpegInstance.exec(args);
-                    clearTimeout(convTimeout);
-                    
-                    const data = await ffmpegInstance.readFile('output.mp4');
-                    const mp4Blob = new Blob([data], { type: 'video/mp4' });
-                    downloadBlob(mp4Blob, isProExport ? 'filmgrade-pro.mp4' : 'filmgrade-free.mp4');
-                } catch (e) {
-                    console.error("FFmpeg Breakdown Error (v37):", e);
-                    const errorMsg = e.message || 'Engine Fail';
-                    statusText.innerHTML = `<span style="color:#f87171">⚠️ MP4変換に失敗しました: ${errorMsg}</span><br><small>セキュリティ制限(COOP/COEP)によりWebM形式で保存します。</small>`;
-                    
-                    // Don't keep the user waiting, fallback to WebM
-                    await new Promise(r => setTimeout(r, 3000));
-                    downloadBlob(blob, isProExport ? 'filmgrade-pro.webm' : 'filmgrade-free.webm');
+                if (isExporting) {
+                    statusText.textContent = '📦 ファイルを最終構築中...';
+                    await videoEncoder.flush();
+                    muxer.finalize();
+                    const blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
+                    downloadBlob(blob, isProExport ? 'filmgrade-custom-pro.mp4' : 'filmgrade-custom-free.mp4');
                 }
-                finishExport();
-            };
-
-            function downloadBlob(blob, name) {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none'; a.href = url; a.download = name;
-                document.body.appendChild(a); a.click();
-                setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
+            } catch (e) {
+                console.error("Custom Engine Error:", e);
+                statusText.innerHTML = `<span style="color:#f87171">⚠️ エラー: ${e.message}</span>`;
             }
+            finishExport();
+        }
 
-            // Start real-time recording
-            videoPlayer.currentTime = 0;
-            videoPlayer.loop = false;
-            videoPlayer.play().catch(()=>{});
-            mediaRecorder.start();
-            btnExport.textContent = '録画中...';
-            btnExport.disabled = true;
-
-            const progressInterval = setInterval(() => {
-                if (!isExporting) { clearInterval(progressInterval); return; }
-                const percent = Math.floor((videoPlayer.currentTime / videoPlayer.duration) * 100);
-                progressFill.style.width = percent + '%';
-                progressText.textContent = percent + '%';
-                statusText.textContent = `🎥 録画中... (${percent}%)`;
-            }, 100);
-
-            videoPlayer.onended = () => {
-                if (mediaRecorder && mediaRecorder.state === 'recording') {
-                    mediaRecorder.stop();
-                    clearInterval(progressInterval);
-                }
-            };
+        function downloadBlob(blob, name) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.style.display = 'none';
+            a.href = url; a.download = name;
+            document.body.appendChild(a); a.click();
+            setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 2000);
         }
 
         function finishExport() {
@@ -1381,16 +1255,6 @@
             videoPlayer.play().catch(()=>{});
         }
 
-        function finishExport() {
-            btnExport.textContent = '⬇️ エクスポート';
-            btnExport.disabled = false;
-            isExporting = false;
-            
-            document.getElementById('modal-export-progress').style.display = 'none';
-            videoPlayer.loop = true;
-            videoPlayer.currentTime = 0;
-            videoPlayer.play().catch(()=>{});
-        }
     </script>
 
 
